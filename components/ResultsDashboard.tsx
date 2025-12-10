@@ -27,6 +27,7 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ data, onRese
   const [tableView, setTableView] = useState<'yearly' | 'monthly'>('yearly');
   const [showParamsEditor, setShowParamsEditor] = useState(false);
   const [showCashComparison, setShowCashComparison] = useState(true);
+  const [premiumWarranty, setPremiumWarranty] = useState(true); // Garanties premium activées par défaut
 
   // ==================== MOTEUR DE CALCUL FINANCIER ====================
   const calculationResult = useMemo(() => {
@@ -1014,35 +1015,208 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ data, onRese
            </div>
         </div>
 
-        {/* --- SECTION GARANTIES BLINDÉES --- */}
-        <div className="bg-zinc-900/30 border border-white/5 p-6 rounded-[24px]">
-            <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2">
-                <ShieldAlert className="text-amber-500 w-5 h-5" /> SÉCURITÉ MAXIMALE & GARANTIES BLINDÉES
-            </h3>
-            <p className="text-zinc-500 text-sm mb-6">💡 Votre installation est protégée comme un coffre-fort. Aucun risque technique ou financier.</p>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {[
-                    { title: "Panneaux", val: "25 ANS", sub: "Garantie Performance", detail: "Perte Max 0.4%/an", icon: Sun },
-                    { title: "Micro-Onduleurs", val: "25 ANS", sub: "Garantie Pièce", detail: "Remplacement à neuf", icon: Zap },
-                    { title: "Main d'Oeuvre", val: "25 ANS", sub: "Intervention Incluse", detail: "Aucun frais cachés", icon: Wrench },
-                    { title: "Déplacement", val: "ILLIMITÉ", sub: "Partout en France", detail: "Service Premium", icon: Truck },
-                ].map((item, i) => (
-                    <div key={i} className="bg-gradient-to-br from-amber-500/10 to-yellow-600/5 border border-amber-500/20 p-4 rounded-xl flex flex-col items-center text-center group hover:bg-amber-500/10 transition-colors">
-                        <div className="w-10 h-10 bg-amber-500/20 rounded-full flex items-center justify-center mb-2 text-amber-500">
-                            <item.icon className="w-5 h-5" />
-                        </div>
-                        <div className="text-2xl font-black text-amber-400 mb-0 leading-none">{item.val}</div>
-                        <div className="text-white font-bold text-[10px] uppercase tracking-wide mt-1">{item.title}</div>
-                        <div className="mt-2 py-0.5 px-2 bg-amber-500/10 rounded-full text-[9px] text-amber-300 font-bold border border-amber-500/20">
-                            {item.detail}
-                        </div>
-                    </div>
-                ))}
-            </div>
-            <div className="mt-6 bg-amber-500/5 border border-amber-500/20 rounded-xl p-4 text-center">
-              <p className="text-sm text-amber-300 font-bold">
-                🛡️ Résultat : Vous dormez tranquille pendant que vos panneaux génèrent des revenus 24/7.
+        {/* ==================== SECTION GARANTIES PREMIUM AVEC CHECKBOX ==================== */}
+        <div className="bg-zinc-900/30 border border-white/5 rounded-[24px] overflow-hidden">
+            {/* HEADER AVEC CHECKBOX */}
+            <div className="p-6 border-b border-white/5 bg-gradient-to-r from-amber-900/20 to-black">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                    <ShieldAlert className="text-amber-500 w-6 h-6" /> SÉCURITÉ MAXIMALE & GARANTIES
+                </h3>
+                
+                {/* CHECKBOX PREMIUM */}
+                <label className="flex items-center gap-3 cursor-pointer group">
+                  <span className="text-sm font-bold text-zinc-400 group-hover:text-white transition-colors">
+                    Garanties Premium
+                  </span>
+                  <div className="relative">
+                    <input
+                      type="checkbox"
+                      checked={premiumWarranty}
+                      onChange={(e) => setPremiumWarranty(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-14 h-7 bg-zinc-700 rounded-full peer-checked:bg-emerald-600 transition-colors"></div>
+                    <div className="absolute left-1 top-1 w-5 h-5 bg-white rounded-full transition-transform peer-checked:translate-x-7 shadow-lg"></div>
+                  </div>
+                </label>
+              </div>
+              <p className="text-zinc-500 text-sm">
+                💡 {premiumWarranty ? "Votre installation est protégée comme un coffre-fort. Aucun risque technique ou financier." : "Garantie standard de performance (-0.4%/an) avec possibilité d'upgrade."}
               </p>
+            </div>
+
+            {/* CONTENU SELON CHECKBOX */}
+            <div className="p-6">
+              {premiumWarranty ? (
+                <>
+                  {/* GARANTIES PREMIUM ACTIVÉES */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                      {[
+                          { title: "Panneaux", val: "À VIE", sub: "Garantie Performance", detail: "Production garantie", icon: Sun, desc: "Si vos panneaux produisent moins que prévu (-0.4%/an), EDF paie la différence" },
+                          { title: "Toutes Pièces", val: "À VIE", sub: "Remplacement Gratuit", detail: "Onduleurs, câbles, fixations", icon: Zap, desc: "Toute panne matérielle = remplacement à neuf sans frais" },
+                          { title: "Main d'Oeuvre", val: "À VIE", sub: "Intervention Incluse", detail: "Aucun frais cachés", icon: Wrench, desc: "Nos techniciens interviennent gratuitement, peu importe le problème" },
+                          { title: "Déplacement", val: "ILLIMITÉ", sub: "Partout en France", detail: "Service Premium 7j/7", icon: Truck, desc: "Aucun frais de déplacement, où que vous soyez" },
+                      ].map((item, i) => (
+                          <div key={i} className="bg-gradient-to-br from-amber-500/10 to-yellow-600/5 border border-amber-500/20 p-4 rounded-xl flex flex-col items-center text-center group hover:bg-amber-500/15 transition-all relative">
+                              <div className="w-12 h-12 bg-amber-500/20 rounded-full flex items-center justify-center mb-2 text-amber-500 group-hover:scale-110 transition-transform">
+                                  <item.icon className="w-6 h-6" />
+                              </div>
+                              <div className="text-2xl font-black text-amber-400 mb-0 leading-none">{item.val}</div>
+                              <div className="text-white font-bold text-[10px] uppercase tracking-wide mt-1">{item.title}</div>
+                              <div className="mt-2 py-0.5 px-2 bg-amber-500/10 rounded-full text-[9px] text-amber-300 font-bold border border-amber-500/20">
+                                  {item.detail}
+                              </div>
+                              
+                              {/* TOOLTIP AU HOVER */}
+                              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 bg-zinc-900 border border-amber-500/30 text-xs p-3 rounded-lg text-zinc-300 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-xl">
+                                  <div className="text-amber-400 font-bold mb-1">{item.sub}</div>
+                                  {item.desc}
+                              </div>
+                          </div>
+                      ))}
+                  </div>
+
+                  {/* AUTOPILOTE EDF + AFFICHEUR */}
+                  <div className="bg-gradient-to-r from-blue-900/20 to-purple-900/20 border border-blue-500/30 rounded-2xl p-6 mb-6">
+                    <div className="flex items-start gap-4">
+                      <div className="p-3 bg-blue-500/20 rounded-xl shrink-0">
+                        <Zap className="w-8 h-8 text-blue-400" />
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="text-lg font-black text-white mb-2 flex items-center gap-2">
+                          🤖 AUTOPILOTE INTELLIGENT EDF <span className="text-xs bg-blue-500 text-white px-2 py-0.5 rounded font-bold">EXCLUSIF</span>
+                        </h4>
+                        <p className="text-zinc-300 text-sm mb-4 leading-relaxed">
+                          Votre installation est pilotée 24/7 par intelligence artificielle. Nous détectons les pannes à distance AVANT que vous ne les remarquiez.
+                        </p>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          <div className="bg-black/40 rounded-xl p-3 border border-blue-500/20">
+                            <div className="flex items-center gap-2 mb-2">
+                              <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
+                              <span className="text-xs font-bold text-blue-400 uppercase">Surveillance en Temps Réel</span>
+                            </div>
+                            <p className="text-xs text-zinc-400">
+                              Chaque panneau est surveillé individuellement. Détection instantanée des anomalies (ombre, salissure, défaillance).
+                            </p>
+                          </div>
+                          
+                          <div className="bg-black/40 rounded-xl p-3 border border-blue-500/20">
+                            <div className="flex items-center gap-2 mb-2">
+                              <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                              <span className="text-xs font-bold text-blue-400 uppercase">Optimisation Automatique</span>
+                            </div>
+                            <p className="text-xs text-zinc-400">
+                              L'IA ajuste en permanence les paramètres pour maximiser votre production et vos économies.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* AFFICHEUR TEMPS RÉEL */}
+                  <div className="bg-gradient-to-r from-purple-900/20 to-pink-900/20 border border-purple-500/30 rounded-2xl p-6">
+                    <div className="flex items-start gap-4">
+                      <div className="p-3 bg-purple-500/20 rounded-xl shrink-0">
+                        <Eye className="w-8 h-8 text-purple-400" />
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="text-lg font-black text-white mb-2">
+                          📱 AFFICHEUR CONNECTÉ EN TEMPS RÉEL
+                        </h4>
+                        <p className="text-zinc-300 text-sm mb-4 leading-relaxed">
+                          Suivez votre production, votre consommation et vos économies depuis votre smartphone ou tablette.
+                        </p>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                          <div className="bg-black/40 rounded-xl p-3 border border-purple-500/20 text-center">
+                            <div className="text-2xl font-black text-purple-400 mb-1">⚡</div>
+                            <div className="text-xs font-bold text-white mb-1">Production Live</div>
+                            <div className="text-[10px] text-zinc-500">kW actuels + Cumul jour</div>
+                          </div>
+                          
+                          <div className="bg-black/40 rounded-xl p-3 border border-purple-500/20 text-center">
+                            <div className="text-2xl font-black text-purple-400 mb-1">🏠</div>
+                            <div className="text-xs font-bold text-white mb-1">Consommation Live</div>
+                            <div className="text-[10px] text-zinc-500">Appareil par appareil</div>
+                          </div>
+                          
+                          <div className="bg-black/40 rounded-xl p-3 border border-purple-500/20 text-center">
+                            <div className="text-2xl font-black text-emerald-400 mb-1">💰</div>
+                            <div className="text-xs font-bold text-white mb-1">Économies Temps Réel</div>
+                            <div className="text-[10px] text-zinc-500">€ économisés aujourd'hui</div>
+                          </div>
+                        </div>
+
+                        <div className="mt-4 bg-purple-500/10 border border-purple-500/20 rounded-xl p-3">
+                          <p className="text-xs text-purple-300 font-bold flex items-center gap-2">
+                            <Info className="w-4 h-4" />
+                            Optimisez vos consommations : l'afficheur vous suggère les meilleurs moments pour lancer lave-linge, lave-vaisselle, etc.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* RÉSUMÉ GARANTIES PREMIUM */}
+                  <div className="mt-6 bg-amber-500/5 border border-amber-500/20 rounded-xl p-4 text-center">
+                    <p className="text-sm text-amber-300 font-bold">
+                      🛡️ RÉSULTAT : Vous dormez tranquille. Nous surveillons tout 24/7. Si problème, on intervient gratuitement. Si sous-production, on paie la différence.
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  {/* GARANTIE STANDARD */}
+                  <div className="bg-zinc-800/50 border border-zinc-700 rounded-2xl p-6 text-center">
+                    <div className="w-16 h-16 bg-zinc-700 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <ShieldAlert className="w-8 h-8 text-zinc-500" />
+                    </div>
+                    <h4 className="text-lg font-bold text-white mb-2">Garantie Standard de Performance</h4>
+                    <p className="text-zinc-400 text-sm mb-4 max-w-lg mx-auto">
+                      Avec la garantie standard, vos panneaux sont garantis avec une perte maximale de <span className="text-white font-bold">-0.4% par an</span>. 
+                      Si la production tombe en dessous de ce seuil, vous pouvez faire une réclamation.
+                    </p>
+                    
+                    <div className="bg-zinc-900/50 border border-zinc-700 rounded-xl p-4 mb-4 max-w-md mx-auto">
+                      <div className="text-xs text-zinc-500 uppercase font-bold mb-2">⚠️ Limitations</div>
+                      <ul className="text-xs text-zinc-400 space-y-2 text-left">
+                        <li className="flex items-start gap-2">
+                          <span className="text-zinc-600">•</span>
+                          <span>Pas de surveillance automatique à distance</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <span className="text-zinc-600">•</span>
+                          <span>Frais de déplacement possibles selon contrat</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <span className="text-zinc-600">•</span>
+                          <span>Main d'œuvre selon conditions du fabricant</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <span className="text-zinc-600">•</span>
+                          <span>Pas d'afficheur connecté en temps réel</span>
+                        </li>
+                      </ul>
+                    </div>
+
+                    <button 
+                      onClick={() => setPremiumWarranty(true)}
+                      className="bg-gradient-to-r from-amber-600 to-yellow-600 text-white font-bold px-8 py-4 rounded-xl hover:scale-105 transition-all shadow-lg shadow-amber-500/30 flex items-center gap-2 mx-auto"
+                    >
+                      <CheckCircle2 className="w-5 h-5" />
+                      PASSER AUX GARANTIES PREMIUM
+                      <ArrowRight className="w-5 h-5" />
+                    </button>
+                    
+                    <p className="text-[10px] text-zinc-600 mt-3">
+                      +2€/mois pour une tranquillité totale à vie
+                    </p>
+                  </div>
+                </>
+              )}
             </div>
         </div>
 
