@@ -1,8 +1,7 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { SimulationResult, YearlyDetail } from '../types';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { Wallet, Zap, TrendingUp, TrendingDown, Sun, ShieldAlert, Flame, Lock, Timer, PiggyBank, Landmark, Table2, Info, Calendar, Scale, Crown, Ban, Wrench, Truck, CheckCircle2, Eye, CalendarDays, Coins, ArrowRight, HelpCircle, AlertTriangle } from 'lucide-react';
+import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { Wallet, Zap, TrendingUp, TrendingDown, Sun, ShieldAlert, Flame, Lock, Timer, PiggyBank, Landmark, Table2, Info, Calendar, Scale, Crown, Ban, Wrench, Truck, CheckCircle2, Eye, CalendarDays, Coins, ArrowRight, HelpCircle, AlertTriangle, Edit3, Settings } from 'lucide-react';
 
 interface ResultsDashboardProps {
   data: SimulationResult;
@@ -10,79 +9,112 @@ interface ResultsDashboardProps {
 }
 
 export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ data, onReset }) => {
-  // Use params extracted by AI, but allow local override via slider
+  // ==================== ÉTATS ÉDITABLES ====================
+  // Tous les paramètres financiers sont maintenant modifiables en temps réel
   const [inflationRate, setInflationRate] = useState<number>(Number(data.params.inflationRate) || 5);
-  const [projectionYears, setProjectionYears] = useState(20); // Default 20 years
+  const [projectionYears, setProjectionYears] = useState(20);
+  
+  // Nouveaux états pour paramètres éditables
+  const [electricityPrice, setElectricityPrice] = useState<number>(Number(data.params.electricityPrice) || 0.25);
+  const [yearlyProduction, setYearlyProduction] = useState<number>(Number(data.params.yearlyProduction) || 0);
+  const [selfConsumptionRate, setSelfConsumptionRate] = useState<number>(Number(data.params.selfConsumptionRate) || 70);
+  const [installCost, setInstallCost] = useState<number>(Number(data.params.installCost) || 20000);
+  const [creditMonthlyPayment, setCreditMonthlyPayment] = useState<number>(Number(data.params.creditMonthlyPayment) || 0);
+  const [insuranceMonthlyPayment, setInsuranceMonthlyPayment] = useState<number>(Number(data.params.insuranceMonthlyPayment) || 0);
+  const [creditDurationMonths, setCreditDurationMonths] = useState<number>(Number(data.params.creditDurationMonths) || 180);
+  
+  // États UI
   const [wastedCash, setWastedCash] = useState(0);
   const [showInactionInfo, setShowInactionInfo] = useState(false);
   const [tableView, setTableView] = useState<'yearly' | 'monthly'>('yearly');
+  const [showParamsEditor, setShowParamsEditor] = useState(false);
 
-  // --- MOTEUR DE CALCUL FINANCIER (CLIENT-SIDE) ---
+  // ==================== MOTEUR DE CALCUL FINANCIER ====================
+  // Tous les calculs sont recalculés en temps réel quand un paramètre change
   const calculationResult = useMemo(() => {
-    // Sécurisation des types : on force tout en nombres
+    // ===== SÉCURISATION DES TYPES =====
     const currentAnnualBill = Number(data.params.currentAnnualBill) || 0;
     const yearlyConsumption = Number(data.params.yearlyConsumption) || 0;
-    const electricityPrice = Number(data.params.electricityPrice) || 0.25;
-    const yearlyProduction = Number(data.params.yearlyProduction) || 0;
-    const selfConsumptionRate = Number(data.params.selfConsumptionRate) || 70;
-    const creditMonthlyPayment = Number(data.params.creditMonthlyPayment) || 0;
-    const insuranceMonthlyPayment = Number(data.params.insuranceMonthlyPayment) || 0;
-    const creditDurationMonths = Number(data.params.creditDurationMonths) || 180;
-    const installCost = Number(data.params.installCost) || 0;
     
-    // Inflation locale (celle du slider)
+    // Utilisation des états locaux (modifiables)
+    const localElectricityPrice = Number(electricityPrice);
+    const localYearlyProduction = Number(yearlyProduction);
+    const localSelfConsumptionRate = Number(selfConsumptionRate);
+    const localCreditMonthlyPayment = Number(creditMonthlyPayment);
+    const localInsuranceMonthlyPayment = Number(insuranceMonthlyPayment);
+    const localCreditDurationMonths = Number(creditDurationMonths);
+    const localInstallCost = Number(installCost);
     const localInflation = Number(inflationRate);
 
     const startYear = new Date().getFullYear();
     const details: YearlyDetail[] = [];
     
-    // 1. Déterminer la consommation de base
-    // Si l'utilisateur a rentré les kWh, on prend ça. Sinon on estime via le prix.
-    // FORMULE STRICTE DEMANDÉE : FACTURE = CONSO * PRIX
-    const baseConsumptionKwh = yearlyConsumption > 0 ? yearlyConsumption : (electricityPrice > 0 ? currentAnnualBill / electricityPrice : 0);
+    // ===== ÉTAPE 1 : CONSOMMATION DE BASE =====
+    // FORMULE : Si kWh fournis → utiliser ça, sinon estimer via FACTURE / PRIX
+    // LOGIQUE : baseConsumptionKwh = kWh réels ou (Facture Annuelle / Prix du kWh)
+    const baseConsumptionKwh = yearlyConsumption > 0 
+      ? yearlyConsumption 
+      : (localElectricityPrice > 0 ? currentAnnualBill / localElectricityPrice : 0);
     
-    // 2. Calculer l'économie physique (kWh autoconsommés)
-    // Production * Taux Autoconsommation
-    const selfConsumedKwh = yearlyProduction * (selfConsumptionRate / 100);
+    // ===== ÉTAPE 2 : AUTOCONSOMMATION =====
+    // FORMULE : kWh Autoconsommés = Production Annuelle × Taux d'Autoconsommation
+    // EXEMPLE : 5000 kWh × 70% = 3500 kWh autoconsommés
+    const selfConsumedKwh = localYearlyProduction * (localSelfConsumptionRate / 100);
     
-    // 3. Taux d'économie (Indicateur clé)
-    // Quelle part de la consommation est couverte par l'autoconsommation ?
-    const savingsRatePercent = baseConsumptionKwh > 0 ? Math.min(100, (selfConsumedKwh / baseConsumptionKwh) * 100) : 0;
+    // ===== ÉTAPE 3 : TAUX D'AUTONOMIE =====
+    // FORMULE : Autonomie % = (kWh Autoconsommés / Consommation Totale) × 100
+    // EXEMPLE : (3500 / 5000) × 100 = 70% d'autonomie
+    // NOTE : Plafonné à 100% car on ne peut pas consommer plus qu'on ne produit
+    const savingsRatePercent = baseConsumptionKwh > 0 
+      ? Math.min(100, (selfConsumedKwh / baseConsumptionKwh) * 100) 
+      : 0;
 
+    // Compteurs cumulatifs
     let cumulativeSavings = 0;
     let cumulativeWithout = 0;
     let cumulativeWith = 0;
 
+    // ===== PROJECTION SUR 30 ANS =====
     for (let i = 0; i < 30; i++) {
       const year = startYear + i;
       
-      // A. SCENARIO SANS SOLAIRE (FOURNISSEUR CLASSIQUE)
-      // On applique l'inflation sur le PRIX DU KWH uniquement, puis on multiplie par la consommation constante.
-      // Formule : Prix_Année_N = Prix_Base * (1 + Inflation)^N
-      const currentElectricityPrice = electricityPrice * Math.pow(1 + localInflation / 100, i);
+      // ===== A. SCÉNARIO SANS SOLAIRE (Fournisseur Classique) =====
+      // FORMULE : Prix Année N = Prix Base × (1 + Inflation)^N
+      // EXEMPLE : 0.25€ × (1.05)^5 = 0.319€/kWh après 5 ans à 5% d'inflation
+      const currentElectricityPrice = localElectricityPrice * Math.pow(1 + localInflation / 100, i);
       
-      // Facture Sans Projet = Conso * Prix_Inflate
+      // FORMULE : Facture Sans Solaire = Consommation × Prix Année N
+      // EXEMPLE : 5000 kWh × 0.319€ = 1595€/an
       const billWithoutSolar = baseConsumptionKwh * currentElectricityPrice;
       
-      // B. SCENARIO AVEC SOLAIRE
-      // 1. Calcul de l'économie financière sur l'année N
-      //    Économie = kWh Autoconsommés * Prix du kWh de l'année N
+      // ===== B. SCÉNARIO AVEC SOLAIRE =====
+      // FORMULE 1 : Économie € = kWh Autoconsommés × Prix Année N
+      // EXEMPLE : 3500 kWh × 0.319€ = 1116.50€ économisés
+      // LOGIQUE : Chaque kWh autoproduit évite d'acheter 1 kWh au fournisseur
       const savingsInEuros = selfConsumedKwh * currentElectricityPrice;
       
-      // 2. Facture Résiduelle = Facture Sans Solaire - Économies
+      // FORMULE 2 : Facture Résiduelle = Facture Pleine - Économies
+      // EXEMPLE : 1595€ - 1116.50€ = 478.50€ (ce qu'il reste à payer)
       const residuaryBill = Math.max(0, billWithoutSolar - savingsInEuros);
 
-      // 3. Coût Crédit
-      const isCreditActive = (i * 12) < creditDurationMonths;
-      const creditCostYearly = isCreditActive ? (creditMonthlyPayment + insuranceMonthlyPayment) * 12 : 0;
+      // FORMULE 3 : Coût Crédit Annuel
+      // LOGIQUE : Si crédit actif → 12 × (Mensualité + Assurance), sinon 0
+      const isCreditActive = (i * 12) < localCreditDurationMonths;
+      const creditCostYearly = isCreditActive 
+        ? (localCreditMonthlyPayment + localInsuranceMonthlyPayment) * 12 
+        : 0;
 
-      // 4. Total Décaissé (Ce qui sort de la poche)
+      // FORMULE 4 : Total Décaissé = Facture Résiduelle + Crédit
+      // EXEMPLE : 478.50€ + (150€×12) = 2278.50€/an
       const totalDecaissé = residuaryBill + creditCostYearly;
 
-      // C. RESULTATS
-      // Gain annuel réel = Ce qu'on aurait payé (Plein Pot) - Ce qu'on paie réellement (Crédit + Reste)
+      // ===== C. GAIN ANNUEL RÉEL =====
+      // FORMULE : Gain = Ce qu'on AURAIT payé - Ce qu'on PAIE réellement
+      // EXEMPLE : 1595€ - 2278.50€ = -683.50€ (Effort la 1ère année si crédit lourd)
+      // NOTE : Négatif = Effort, Positif = Gain
       const yearlySaving = billWithoutSolar - totalDecaissé; 
       
+      // Mise à jour des cumulés
       cumulativeSavings += yearlySaving;
       cumulativeWithout += billWithoutSolar;
       cumulativeWith += totalDecaissé;
@@ -100,28 +132,41 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ data, onRese
       });
     }
 
+    // Extraction des données pour la période sélectionnée
     const slicedDetails = details.slice(0, projectionYears);
     const totalSavingsProjected = slicedDetails[slicedDetails.length - 1].cumulativeSavings;
     const totalSpendNoSolar = slicedDetails[slicedDetails.length - 1].cumulativeSpendNoSolar;
     const totalSpendSolar = slicedDetails[slicedDetails.length - 1].cumulativeSpendSolar;
     
+    // ===== POINT MORT =====
+    // FORMULE : Première année où cumulativeSavings > 0
+    // LOGIQUE : Quand l'investissement commence à rapporter
     const breakEvenYearIndex = details.findIndex(d => d.cumulativeSavings > 0);
     const breakEvenPoint = breakEvenYearIndex !== -1 ? breakEvenYearIndex + 1 : 30;
     
-    // Année 1 (Immédiat) pour les indicateurs court terme
+    // ===== INDICATEURS ANNÉE 1 (Court Terme) =====
     const year1 = details[0];
     const newMonthlyBillYear1 = year1.totalWithSolar / 12;
     const oldMonthlyBillYear1 = year1.edfBillWithoutSolar / 12;
     
-    // EFFORT MENSUEL = (Crédit + Reste) - Ancienne Facture
-    // Positif = Effort (Je paie plus). Négatif = Gain (Je paie moins).
+    // FORMULE : Effort Mensuel = Nouveau Budget - Ancien Budget
+    // EXEMPLE : (2278.50/12) - (1595/12) = 189.88€ - 132.92€ = +56.96€/mois (Effort)
     const monthlyEffortYear1 = newMonthlyBillYear1 - oldMonthlyBillYear1;
     
+    // ===== INDICATEURS DE PERFORMANCE =====
     const averageYearlyGain = projectionYears > 0 ? totalSavingsProjected / projectionYears : 0;
     const costOfInactionPerSecond = Math.max(0.0001, averageYearlyGain / (365 * 24 * 3600));
 
-    const effectiveCost = installCost > 0 ? installCost : 20000; 
-    const roiPercentage = effectiveCost > 0 ? ((totalSavingsProjected / projectionYears) / effectiveCost) * 100 : 0;
+    const effectiveCost = localInstallCost > 0 ? localInstallCost : 20000; 
+    
+    // FORMULE : ROI % = (Gain Annuel Moyen / Investissement) × 100
+    // EXEMPLE : (500€ / 20000€) × 100 = 2.5% de rentabilité annuelle
+    const roiPercentage = effectiveCost > 0 
+      ? ((totalSavingsProjected / projectionYears) / effectiveCost) * 100 
+      : 0;
+    
+    // FORMULE : Capital Bancaire Équivalent = Gain Annuel / Taux Livret A (3%)
+    // EXEMPLE : 500€ / 0.03 = 16 667€ à bloquer pour générer 500€/an d'intérêts
     const bankEquivalentCapital = averageYearlyGain / 0.03;
 
     return { 
@@ -141,9 +186,20 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ data, onRese
       bankEquivalentCapital,
       savingsRatePercent,
       baseConsumptionKwh,
-      installCost // Added here
+      installCost: localInstallCost
     };
-  }, [data.params, inflationRate, projectionYears]);
+  }, [
+    data.params, 
+    inflationRate, 
+    projectionYears, 
+    electricityPrice, 
+    yearlyProduction, 
+    selfConsumptionRate, 
+    installCost,
+    creditMonthlyPayment,
+    insuranceMonthlyPayment,
+    creditDurationMonths
+  ]);
 
   // Animation "Wasted Cash"
   useEffect(() => {
@@ -178,13 +234,173 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ data, onRese
               <span className="text-[10px] text-zinc-500 font-bold tracking-widest uppercase">Analyse Financière Premium</span>
             </div>
           </div>
-          <button onClick={onReset} className="text-xs font-bold text-zinc-500 hover:text-white uppercase tracking-widest transition-colors flex items-center gap-2">
-            <TrendingUp className="w-4 h-4" /> Nouvelle Analyse
-          </button>
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={() => setShowParamsEditor(!showParamsEditor)}
+              className="text-xs font-bold text-zinc-500 hover:text-blue-400 uppercase tracking-widest transition-colors flex items-center gap-2 bg-zinc-900/50 px-4 py-2 rounded-xl border border-white/10"
+            >
+              <Settings className="w-4 h-4" /> Modifier Paramètres
+            </button>
+            <button onClick={onReset} className="text-xs font-bold text-zinc-500 hover:text-white uppercase tracking-widest transition-colors flex items-center gap-2">
+              <TrendingUp className="w-4 h-4" /> Nouvelle Analyse
+            </button>
+          </div>
         </div>
       </nav>
 
       <main className="max-w-7xl mx-auto px-4 pt-28 space-y-10">
+
+        {/* ==================== PANNEAU D'ÉDITION DES PARAMÈTRES ==================== */}
+        {showParamsEditor && (
+          <div className="bg-gradient-to-br from-blue-900/20 to-black border-2 border-blue-500/40 rounded-[32px] p-8 animate-in fade-in slide-in-from-top-4">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-blue-500/20 rounded-lg">
+                  <Edit3 className="w-5 h-5 text-blue-400" />
+                </div>
+                <h2 className="text-2xl font-black text-white">PARAMÈTRES FINANCIERS</h2>
+              </div>
+              <button 
+                onClick={() => setShowParamsEditor(false)}
+                className="text-zinc-500 hover:text-white transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              
+              {/* Prix Électricité */}
+              <div className="bg-black/40 border border-white/10 rounded-2xl p-4">
+                <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2 block flex items-center gap-2">
+                  <Zap className="w-4 h-4 text-yellow-500" />
+                  Prix Électricité (€/kWh)
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={electricityPrice}
+                  onChange={(e) => setElectricityPrice(parseFloat(e.target.value) || 0)}
+                  className="w-full bg-zinc-900 border border-white/20 rounded-xl px-4 py-3 text-white text-lg font-bold focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <p className="text-[10px] text-zinc-600 mt-2">Tarif actuel du kWh chez votre fournisseur</p>
+              </div>
+
+              {/* Production Annuelle */}
+              <div className="bg-black/40 border border-white/10 rounded-2xl p-4">
+                <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2 block flex items-center gap-2">
+                  <Sun className="w-4 h-4 text-orange-500" />
+                  Production Annuelle (kWh)
+                </label>
+                <input
+                  type="number"
+                  step="100"
+                  value={yearlyProduction}
+                  onChange={(e) => setYearlyProduction(parseFloat(e.target.value) || 0)}
+                  className="w-full bg-zinc-900 border border-white/20 rounded-xl px-4 py-3 text-white text-lg font-bold focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <p className="text-[10px] text-zinc-600 mt-2">kWh produits par vos panneaux/an</p>
+              </div>
+
+              {/* Taux Autoconsommation */}
+              <div className="bg-black/40 border border-white/10 rounded-2xl p-4">
+                <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2 block flex items-center gap-2">
+                  <TrendingUp className="w-4 h-4 text-emerald-500" />
+                  Taux Autoconsommation (%)
+                </label>
+                <input
+                  type="number"
+                  step="1"
+                  min="0"
+                  max="100"
+                  value={selfConsumptionRate}
+                  onChange={(e) => setSelfConsumptionRate(parseFloat(e.target.value) || 0)}
+                  className="w-full bg-zinc-900 border border-white/20 rounded-xl px-4 py-3 text-white text-lg font-bold focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <p className="text-[10px] text-zinc-600 mt-2">% de production consommée directement</p>
+              </div>
+
+              {/* Coût Installation */}
+              <div className="bg-black/40 border border-white/10 rounded-2xl p-4">
+                <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2 block flex items-center gap-2">
+                  <Wallet className="w-4 h-4 text-purple-500" />
+                  Coût Installation (€)
+                </label>
+                <input
+                  type="number"
+                  step="1000"
+                  value={installCost}
+                  onChange={(e) => setInstallCost(parseFloat(e.target.value) || 0)}
+                  className="w-full bg-zinc-900 border border-white/20 rounded-xl px-4 py-3 text-white text-lg font-bold focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <p className="text-[10px] text-zinc-600 mt-2">Prix total TTC du projet</p>
+              </div>
+
+              {/* Mensualité Crédit */}
+              <div className="bg-black/40 border border-white/10 rounded-2xl p-4">
+                <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2 block flex items-center gap-2">
+                  <Coins className="w-4 h-4 text-blue-500" />
+                  Mensualité Crédit (€)
+                </label>
+                <input
+                  type="number"
+                  step="10"
+                  value={creditMonthlyPayment}
+                  onChange={(e) => setCreditMonthlyPayment(parseFloat(e.target.value) || 0)}
+                  className="w-full bg-zinc-900 border border-white/20 rounded-xl px-4 py-3 text-white text-lg font-bold focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <p className="text-[10px] text-zinc-600 mt-2">Montant mensuel du prêt</p>
+              </div>
+
+              {/* Assurance Mensuelle */}
+              <div className="bg-black/40 border border-white/10 rounded-2xl p-4">
+                <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2 block flex items-center gap-2">
+                  <ShieldAlert className="w-4 h-4 text-amber-500" />
+                  Assurance (€/mois)
+                </label>
+                <input
+                  type="number"
+                  step="1"
+                  value={insuranceMonthlyPayment}
+                  onChange={(e) => setInsuranceMonthlyPayment(parseFloat(e.target.value) || 0)}
+                  className="w-full bg-zinc-900 border border-white/20 rounded-xl px-4 py-3 text-white text-lg font-bold focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <p className="text-[10px] text-zinc-600 mt-2">Assurance emprunteur mensuelle</p>
+              </div>
+
+              {/* Durée Crédit */}
+              <div className="bg-black/40 border border-white/10 rounded-2xl p-4 md:col-span-2">
+                <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2 block flex items-center gap-2">
+                  <Timer className="w-4 h-4 text-red-500" />
+                  Durée Crédit (mois)
+                </label>
+                <div className="flex items-center gap-4">
+                  <input
+                    type="range"
+                    min="0"
+                    max="360"
+                    step="12"
+                    value={creditDurationMonths}
+                    onChange={(e) => setCreditDurationMonths(parseFloat(e.target.value) || 0)}
+                    className="flex-1 h-2 bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                  />
+                  <span className="text-2xl font-black text-white tabular-nums w-20 text-right">
+                    {creditDurationMonths} <span className="text-sm text-zinc-500">mois</span>
+                  </span>
+                </div>
+                <p className="text-[10px] text-zinc-600 mt-2">Soit {(creditDurationMonths / 12).toFixed(1)} années de remboursement</p>
+              </div>
+
+            </div>
+
+            <div className="mt-6 p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl">
+              <p className="text-sm text-blue-300 flex items-center gap-2">
+                <Info className="w-4 h-4" />
+                <span>Les graphiques et calculs se mettent à jour automatiquement quand vous modifiez les valeurs.</span>
+              </p>
+            </div>
+          </div>
+        )}
 
          {/* --- TICKING BOMB --- */}
          <div className="relative group cursor-help" onClick={() => setShowInactionInfo(!showInactionInfo)}>
@@ -600,7 +816,78 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ data, onRese
          </div>
 
 
-        {/* --- GRAPH 2 : LE GOUFFRE FINANCIER (CISEAUX) --- */}
+        {/* ==================== NOUVEAU GRAPHIQUE : ÉCONOMIES ANNUELLES ==================== */}
+        <div className="bg-zinc-900/50 border border-white/5 rounded-[32px] p-8 backdrop-blur-sm">
+            <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
+                <div>
+                    <h2 className="text-xl font-black text-white flex items-center gap-3">
+                        <TrendingUp className="text-emerald-500" /> ÉCONOMIES ANNUELLES
+                    </h2>
+                    <p className="text-zinc-500 text-sm mt-1 max-w-xl">
+                        Votre gain net par année (rouge = effort d'investissement, vert = rentabilité)
+                    </p>
+                </div>
+            </div>
+
+            <div className="w-full" style={{ minHeight: '400px' }}>
+                <ResponsiveContainer width="100%" height={400}>
+                    <BarChart data={calculationResult.slicedDetails} margin={{ top: 20, right: 10, left: 10, bottom: 0 }}>
+                        <defs>
+                            <linearGradient id="barGradientPositive" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stopColor="#10b981" stopOpacity={0.8}/>
+                                <stop offset="100%" stopColor="#059669" stopOpacity={0.4}/>
+                            </linearGradient>
+                            <linearGradient id="barGradientNegative" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stopColor="#ef4444" stopOpacity={0.8}/>
+                                <stop offset="100%" stopColor="#dc2626" stopOpacity={0.4}/>
+                            </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} opacity={0.5} />
+                        <XAxis 
+                            dataKey="year" 
+                            stroke="#52525b" 
+                            tick={{fill: '#a1a1aa', fontSize: 12}} 
+                            tickLine={false} 
+                            axisLine={false}
+                        />
+                        <YAxis 
+                            stroke="#52525b" 
+                            tickFormatter={(value) => `${(value / 1000).toFixed(1)} k€`}
+                            tick={{fill: '#a1a1aa', fontSize: 12}} 
+                            tickLine={false} 
+                            axisLine={false}
+                        />
+                        <Tooltip 
+                            contentStyle={{ 
+                                backgroundColor: '#09090b', 
+                                borderColor: '#27272a', 
+                                borderRadius: '12px', 
+                                padding: '12px', 
+                                boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.5)' 
+                            }}
+                            itemStyle={{ fontWeight: 600, fontSize: '13px' }}
+                            formatter={(value: number) => [
+                                formatEUR(value), 
+                                value >= 0 ? 'Gain Annuel' : 'Effort Annuel'
+                            ]}
+                            labelStyle={{ color: '#a1a1aa', marginBottom: '8px', fontSize: '12px' }}
+                        />
+                        <Bar 
+                            dataKey="cashflowDiff" 
+                            name="Cashflow Annuel"
+                            fill="url(#barGradientPositive)"
+                            radius={[8, 8, 0, 0]}
+                        >
+                            {calculationResult.slicedDetails.map((entry, index) => (
+                                <cell key={`cell-${index}`} fill={entry.cashflowDiff >= 0 ? 'url(#barGradientPositive)' : 'url(#barGradientNegative)'} />
+                            ))}
+                        </Bar>
+                    </BarChart>
+                </ResponsiveContainer>
+            </div>
+        </div>
+
+        {/* --- GRAPH 2 : LE GOUFFRE FINANCIER (CISEAUX) AMÉLIORÉ --- */}
         <div className="bg-zinc-900/50 border border-white/5 rounded-[32px] p-8 backdrop-blur-sm">
             <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
                 <div>
@@ -634,7 +921,14 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ data, onRese
                 <ResponsiveContainer width="100%" height={400}>
                     <AreaChart data={calculationResult.slicedDetails} margin={{ top: 20, right: 10, left: 10, bottom: 0 }}>
                         <defs>
-                            {/* Simplification: Removed complex gradients for better visibility/compatibility */}
+                            <linearGradient id="colorRed" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#ef4444" stopOpacity={0.4}/>
+                                <stop offset="95%" stopColor="#ef4444" stopOpacity={0.05}/>
+                            </linearGradient>
+                            <linearGradient id="colorBlue" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.4}/>
+                                <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.05}/>
+                            </linearGradient>
                         </defs>
                         <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} opacity={0.5} />
                         <XAxis 
@@ -653,7 +947,13 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ data, onRese
                             domain={[0, 'auto']}
                         />
                         <Tooltip 
-                            contentStyle={{ backgroundColor: '#09090b', borderColor: '#27272a', borderRadius: '12px', padding: '12px', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.5)' }}
+                            contentStyle={{ 
+                                backgroundColor: '#09090b', 
+                                borderColor: '#27272a', 
+                                borderRadius: '12px', 
+                                padding: '12px', 
+                                boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.5)' 
+                            }}
                             itemStyle={{ fontWeight: 600, fontSize: '13px' }}
                             formatter={(value: number) => formatEUR(value)}
                             labelStyle={{ color: '#a1a1aa', marginBottom: '8px', fontSize: '12px' }}
@@ -666,9 +966,8 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ data, onRese
                             name="Argent Brûlé (Fournisseur)" 
                             stroke="#ef4444" 
                             strokeWidth={4}
-                            fill="#ef4444"
-                            fillOpacity={0.15}
-                            activeDot={{ r: 6, strokeWidth: 0 }}
+                            fill="url(#colorRed)"
+                            activeDot={{ r: 6, strokeWidth: 0, fill: '#ef4444' }}
                         />
                         <Area 
                             type="monotone" 
@@ -676,9 +975,8 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ data, onRese
                             name="Argent Investi (Solaire)" 
                             stroke="#3b82f6" 
                             strokeWidth={4}
-                            fill="#3b82f6"
-                            fillOpacity={0.15}
-                            activeDot={{ r: 6, strokeWidth: 0 }}
+                            fill="url(#colorBlue)"
+                            activeDot={{ r: 6, strokeWidth: 0, fill: '#3b82f6' }}
                         />
                     </AreaChart>
                 </ResponsiveContainer>
