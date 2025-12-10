@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { SimulationResult, YearlyDetail } from '../types';
-import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { Wallet, Zap, TrendingUp, TrendingDown, Sun, ShieldAlert, Flame, Lock, Timer, PiggyBank, Landmark, Table2, Info, Calendar, Scale, Crown, Ban, Wrench, Truck, CheckCircle2, Eye, CalendarDays, Coins, ArrowRight, HelpCircle, AlertTriangle, Edit3, Settings } from 'lucide-react';
+import { AreaChart, Area, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { Wallet, Zap, TrendingUp, TrendingDown, Sun, ShieldAlert, Flame, Lock, Timer, PiggyBank, Landmark, Table2, Info, Calendar, Scale, Crown, Ban, Wrench, Truck, CheckCircle2, Eye, CalendarDays, Coins, ArrowRight, HelpCircle, AlertTriangle, Edit3, Settings, DollarSign, TrendingDown as TrendDown, Clock, Target, Award, Users, Home, CreditCard, Banknote } from 'lucide-react';
 
 interface ResultsDashboardProps {
   data: SimulationResult;
@@ -10,11 +10,9 @@ interface ResultsDashboardProps {
 
 export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ data, onReset }) => {
   // ==================== ÉTATS ÉDITABLES ====================
-  // Tous les paramètres financiers sont maintenant modifiables en temps réel
   const [inflationRate, setInflationRate] = useState<number>(Number(data.params.inflationRate) || 5);
   const [projectionYears, setProjectionYears] = useState(20);
   
-  // Nouveaux états pour paramètres éditables
   const [electricityPrice, setElectricityPrice] = useState<number>(Number(data.params.electricityPrice) || 0.25);
   const [yearlyProduction, setYearlyProduction] = useState<number>(Number(data.params.yearlyProduction) || 0);
   const [selfConsumptionRate, setSelfConsumptionRate] = useState<number>(Number(data.params.selfConsumptionRate) || 70);
@@ -28,15 +26,13 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ data, onRese
   const [showInactionInfo, setShowInactionInfo] = useState(false);
   const [tableView, setTableView] = useState<'yearly' | 'monthly'>('yearly');
   const [showParamsEditor, setShowParamsEditor] = useState(false);
+  const [showCashComparison, setShowCashComparison] = useState(true);
 
   // ==================== MOTEUR DE CALCUL FINANCIER ====================
-  // Tous les calculs sont recalculés en temps réel quand un paramètre change
   const calculationResult = useMemo(() => {
-    // ===== SÉCURISATION DES TYPES =====
     const currentAnnualBill = Number(data.params.currentAnnualBill) || 0;
     const yearlyConsumption = Number(data.params.yearlyConsumption) || 0;
     
-    // Utilisation des états locaux (modifiables)
     const localElectricityPrice = Number(electricityPrice);
     const localYearlyProduction = Number(yearlyProduction);
     const localSelfConsumptionRate = Number(selfConsumptionRate);
@@ -49,72 +45,32 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ data, onRese
     const startYear = new Date().getFullYear();
     const details: YearlyDetail[] = [];
     
-    // ===== ÉTAPE 1 : CONSOMMATION DE BASE =====
-    // FORMULE : Si kWh fournis → utiliser ça, sinon estimer via FACTURE / PRIX
-    // LOGIQUE : baseConsumptionKwh = kWh réels ou (Facture Annuelle / Prix du kWh)
     const baseConsumptionKwh = yearlyConsumption > 0 
       ? yearlyConsumption 
       : (localElectricityPrice > 0 ? currentAnnualBill / localElectricityPrice : 0);
     
-    // ===== ÉTAPE 2 : AUTOCONSOMMATION =====
-    // FORMULE : kWh Autoconsommés = Production Annuelle × Taux d'Autoconsommation
-    // EXEMPLE : 5000 kWh × 70% = 3500 kWh autoconsommés
     const selfConsumedKwh = localYearlyProduction * (localSelfConsumptionRate / 100);
-    
-    // ===== ÉTAPE 3 : TAUX D'AUTONOMIE =====
-    // FORMULE : Autonomie % = (kWh Autoconsommés / Consommation Totale) × 100
-    // EXEMPLE : (3500 / 5000) × 100 = 70% d'autonomie
-    // NOTE : Plafonné à 100% car on ne peut pas consommer plus qu'on ne produit
     const savingsRatePercent = baseConsumptionKwh > 0 
       ? Math.min(100, (selfConsumedKwh / baseConsumptionKwh) * 100) 
       : 0;
 
-    // Compteurs cumulatifs
     let cumulativeSavings = 0;
     let cumulativeWithout = 0;
     let cumulativeWith = 0;
 
-    // ===== PROJECTION SUR 30 ANS =====
     for (let i = 0; i < 30; i++) {
       const year = startYear + i;
-      
-      // ===== A. SCÉNARIO SANS SOLAIRE (Fournisseur Classique) =====
-      // FORMULE : Prix Année N = Prix Base × (1 + Inflation)^N
-      // EXEMPLE : 0.25€ × (1.05)^5 = 0.319€/kWh après 5 ans à 5% d'inflation
       const currentElectricityPrice = localElectricityPrice * Math.pow(1 + localInflation / 100, i);
-      
-      // FORMULE : Facture Sans Solaire = Consommation × Prix Année N
-      // EXEMPLE : 5000 kWh × 0.319€ = 1595€/an
       const billWithoutSolar = baseConsumptionKwh * currentElectricityPrice;
-      
-      // ===== B. SCÉNARIO AVEC SOLAIRE =====
-      // FORMULE 1 : Économie € = kWh Autoconsommés × Prix Année N
-      // EXEMPLE : 3500 kWh × 0.319€ = 1116.50€ économisés
-      // LOGIQUE : Chaque kWh autoproduit évite d'acheter 1 kWh au fournisseur
       const savingsInEuros = selfConsumedKwh * currentElectricityPrice;
-      
-      // FORMULE 2 : Facture Résiduelle = Facture Pleine - Économies
-      // EXEMPLE : 1595€ - 1116.50€ = 478.50€ (ce qu'il reste à payer)
       const residuaryBill = Math.max(0, billWithoutSolar - savingsInEuros);
-
-      // FORMULE 3 : Coût Crédit Annuel
-      // LOGIQUE : Si crédit actif → 12 × (Mensualité + Assurance), sinon 0
       const isCreditActive = (i * 12) < localCreditDurationMonths;
       const creditCostYearly = isCreditActive 
         ? (localCreditMonthlyPayment + localInsuranceMonthlyPayment) * 12 
         : 0;
-
-      // FORMULE 4 : Total Décaissé = Facture Résiduelle + Crédit
-      // EXEMPLE : 478.50€ + (150€×12) = 2278.50€/an
       const totalDecaissé = residuaryBill + creditCostYearly;
-
-      // ===== C. GAIN ANNUEL RÉEL =====
-      // FORMULE : Gain = Ce qu'on AURAIT payé - Ce qu'on PAIE réellement
-      // EXEMPLE : 1595€ - 2278.50€ = -683.50€ (Effort la 1ère année si crédit lourd)
-      // NOTE : Négatif = Effort, Positif = Gain
       const yearlySaving = billWithoutSolar - totalDecaissé; 
       
-      // Mise à jour des cumulés
       cumulativeSavings += yearlySaving;
       cumulativeWithout += billWithoutSolar;
       cumulativeWith += totalDecaissé;
@@ -132,42 +88,68 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ data, onRese
       });
     }
 
-    // Extraction des données pour la période sélectionnée
     const slicedDetails = details.slice(0, projectionYears);
     const totalSavingsProjected = slicedDetails[slicedDetails.length - 1].cumulativeSavings;
     const totalSpendNoSolar = slicedDetails[slicedDetails.length - 1].cumulativeSpendNoSolar;
     const totalSpendSolar = slicedDetails[slicedDetails.length - 1].cumulativeSpendSolar;
     
-    // ===== POINT MORT =====
-    // FORMULE : Première année où cumulativeSavings > 0
-    // LOGIQUE : Quand l'investissement commence à rapporter
     const breakEvenYearIndex = details.findIndex(d => d.cumulativeSavings > 0);
     const breakEvenPoint = breakEvenYearIndex !== -1 ? breakEvenYearIndex + 1 : 30;
     
-    // ===== INDICATEURS ANNÉE 1 (Court Terme) =====
     const year1 = details[0];
     const newMonthlyBillYear1 = year1.totalWithSolar / 12;
     const oldMonthlyBillYear1 = year1.edfBillWithoutSolar / 12;
-    
-    // FORMULE : Effort Mensuel = Nouveau Budget - Ancien Budget
-    // EXEMPLE : (2278.50/12) - (1595/12) = 189.88€ - 132.92€ = +56.96€/mois (Effort)
     const monthlyEffortYear1 = newMonthlyBillYear1 - oldMonthlyBillYear1;
     
-    // ===== INDICATEURS DE PERFORMANCE =====
     const averageYearlyGain = projectionYears > 0 ? totalSavingsProjected / projectionYears : 0;
     const costOfInactionPerSecond = Math.max(0.0001, averageYearlyGain / (365 * 24 * 3600));
-
     const effectiveCost = localInstallCost > 0 ? localInstallCost : 20000; 
-    
-    // FORMULE : ROI % = (Gain Annuel Moyen / Investissement) × 100
-    // EXEMPLE : (500€ / 20000€) × 100 = 2.5% de rentabilité annuelle
     const roiPercentage = effectiveCost > 0 
       ? ((totalSavingsProjected / projectionYears) / effectiveCost) * 100 
       : 0;
-    
-    // FORMULE : Capital Bancaire Équivalent = Gain Annuel / Taux Livret A (3%)
-    // EXEMPLE : 500€ / 0.03 = 16 667€ à bloquer pour générer 500€/an d'intérêts
     const bankEquivalentCapital = averageYearlyGain / 0.03;
+
+    // ===== CALCUL SCÉNARIO CASH (Sans Crédit) =====
+    let cumulativeSavingsCash = -localInstallCost; // On paye cash au départ
+    const detailsCash: YearlyDetail[] = [];
+    
+    for (let i = 0; i < 30; i++) {
+      const year = startYear + i;
+      const currentElectricityPrice = localElectricityPrice * Math.pow(1 + localInflation / 100, i);
+      const billWithoutSolar = baseConsumptionKwh * currentElectricityPrice;
+      const savingsInEuros = selfConsumedKwh * currentElectricityPrice;
+      const residuaryBill = Math.max(0, billWithoutSolar - savingsInEuros);
+      
+      // CASH : Pas de crédit, juste la facture résiduelle
+      const yearlySavingCash = billWithoutSolar - residuaryBill;
+      cumulativeSavingsCash += yearlySavingCash;
+
+      detailsCash.push({
+        year,
+        edfBillWithoutSolar: billWithoutSolar,
+        creditPayment: 0,
+        edfResidue: residuaryBill,
+        totalWithSolar: residuaryBill,
+        cumulativeSavings: cumulativeSavingsCash,
+        cumulativeSpendNoSolar: 0,
+        cumulativeSpendSolar: 0,
+        cashflowDiff: yearlySavingCash
+      });
+    }
+
+    const slicedDetailsCash = detailsCash.slice(0, projectionYears);
+    const totalSavingsProjectedCash = slicedDetailsCash[slicedDetailsCash.length - 1].cumulativeSavings;
+    const breakEvenYearIndexCash = detailsCash.findIndex(d => d.cumulativeSavings > 0);
+    const breakEvenPointCash = breakEvenYearIndexCash !== -1 ? breakEvenYearIndexCash + 1 : 30;
+    const averageYearlyGainCash = projectionYears > 0 ? totalSavingsProjectedCash / projectionYears : 0;
+    const roiPercentageCash = effectiveCost > 0 
+      ? ((totalSavingsProjectedCash / projectionYears) / effectiveCost) * 100 
+      : 0;
+
+    // ===== CALCUL "ET SI J'ATTENDS 1 AN DE PLUS?" =====
+    const priceNextYear = localElectricityPrice * Math.pow(1 + localInflation / 100, 1);
+    const lossIfWait1Year = baseConsumptionKwh * priceNextYear;
+    const savingsLostIfWait1Year = selfConsumedKwh * priceNextYear;
 
     return { 
       details, 
@@ -186,7 +168,17 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ data, onRese
       bankEquivalentCapital,
       savingsRatePercent,
       baseConsumptionKwh,
-      installCost: localInstallCost
+      installCost: localInstallCost,
+      // CASH
+      detailsCash,
+      slicedDetailsCash,
+      totalSavingsProjectedCash,
+      breakEvenPointCash,
+      averageYearlyGainCash,
+      roiPercentageCash,
+      // WAIT
+      lossIfWait1Year,
+      savingsLostIfWait1Year
     };
   }, [
     data.params, 
@@ -214,7 +206,6 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ data, onRese
   const formatMoney = (num: number) => new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2 }).format(num);
   const formatKwh = (num: number) => new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 }).format(num);
 
-  // Valeurs pour le Bilan Total (Barres Custom)
   const maxSpend = Math.max(calculationResult.totalSpendNoSolar, calculationResult.totalSpendSolar) || 1;
   const percentNoSolar = (calculationResult.totalSpendNoSolar / maxSpend) * 100;
   const percentSolar = (calculationResult.totalSpendSolar / maxSpend) * 100;
@@ -239,7 +230,7 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ data, onRese
               onClick={() => setShowParamsEditor(!showParamsEditor)}
               className="text-xs font-bold text-zinc-500 hover:text-blue-400 uppercase tracking-widest transition-colors flex items-center gap-2 bg-zinc-900/50 px-4 py-2 rounded-xl border border-white/10"
             >
-              <Settings className="w-4 h-4" /> Modifier Paramètres
+              <Settings className="w-4 h-4" /> Modifier
             </button>
             <button onClick={onReset} className="text-xs font-bold text-zinc-500 hover:text-white uppercase tracking-widest transition-colors flex items-center gap-2">
               <TrendingUp className="w-4 h-4" /> Nouvelle Analyse
@@ -270,7 +261,6 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ data, onRese
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               
-              {/* Prix Électricité */}
               <div className="bg-black/40 border border-white/10 rounded-2xl p-4">
                 <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2 block flex items-center gap-2">
                   <Zap className="w-4 h-4 text-yellow-500" />
@@ -286,7 +276,6 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ data, onRese
                 <p className="text-[10px] text-zinc-600 mt-2">Tarif actuel du kWh chez votre fournisseur</p>
               </div>
 
-              {/* Production Annuelle */}
               <div className="bg-black/40 border border-white/10 rounded-2xl p-4">
                 <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2 block flex items-center gap-2">
                   <Sun className="w-4 h-4 text-orange-500" />
@@ -302,7 +291,6 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ data, onRese
                 <p className="text-[10px] text-zinc-600 mt-2">kWh produits par vos panneaux/an</p>
               </div>
 
-              {/* Taux Autoconsommation */}
               <div className="bg-black/40 border border-white/10 rounded-2xl p-4">
                 <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2 block flex items-center gap-2">
                   <TrendingUp className="w-4 h-4 text-emerald-500" />
@@ -320,7 +308,6 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ data, onRese
                 <p className="text-[10px] text-zinc-600 mt-2">% de production consommée directement</p>
               </div>
 
-              {/* Coût Installation */}
               <div className="bg-black/40 border border-white/10 rounded-2xl p-4">
                 <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2 block flex items-center gap-2">
                   <Wallet className="w-4 h-4 text-purple-500" />
@@ -336,7 +323,6 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ data, onRese
                 <p className="text-[10px] text-zinc-600 mt-2">Prix total TTC du projet</p>
               </div>
 
-              {/* Mensualité Crédit */}
               <div className="bg-black/40 border border-white/10 rounded-2xl p-4">
                 <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2 block flex items-center gap-2">
                   <Coins className="w-4 h-4 text-blue-500" />
@@ -352,7 +338,6 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ data, onRese
                 <p className="text-[10px] text-zinc-600 mt-2">Montant mensuel du prêt</p>
               </div>
 
-              {/* Assurance Mensuelle */}
               <div className="bg-black/40 border border-white/10 rounded-2xl p-4">
                 <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2 block flex items-center gap-2">
                   <ShieldAlert className="w-4 h-4 text-amber-500" />
@@ -368,7 +353,6 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ data, onRese
                 <p className="text-[10px] text-zinc-600 mt-2">Assurance emprunteur mensuelle</p>
               </div>
 
-              {/* Durée Crédit */}
               <div className="bg-black/40 border border-white/10 rounded-2xl p-4 md:col-span-2">
                 <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2 block flex items-center gap-2">
                   <Timer className="w-4 h-4 text-red-500" />
@@ -396,29 +380,55 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ data, onRese
             <div className="mt-6 p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl">
               <p className="text-sm text-blue-300 flex items-center gap-2">
                 <Info className="w-4 h-4" />
-                <span>Les graphiques et calculs se mettent à jour automatiquement quand vous modifiez les valeurs.</span>
+                <span>Les graphiques et calculs se mettent à jour automatiquement.</span>
               </p>
             </div>
           </div>
         )}
 
-         {/* --- TICKING BOMB --- */}
-         <div className="relative group cursor-help" onClick={() => setShowInactionInfo(!showInactionInfo)}>
-           <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-4 flex flex-col md:flex-row items-center justify-between gap-4 animate-in fade-in slide-in-from-top-4 hover:bg-red-500/15 transition-colors">
-               <div className="flex items-center gap-4">
-                   <div className="bg-red-500/20 p-3 rounded-full animate-pulse">
-                       <Timer className="w-6 h-6 text-red-500" />
+         {/* ==================== ALERTE PSYCHOLOGIQUE : COÛT DE L'ATTENTE ==================== */}
+         <div className="bg-gradient-to-r from-red-900/30 to-orange-900/20 border-2 border-red-500/40 rounded-[32px] p-6 relative overflow-hidden">
+           <div className="absolute top-0 right-0 opacity-5">
+             <Clock className="w-64 h-64 text-red-500" />
+           </div>
+           <div className="relative z-10">
+             <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+               <div className="flex-1">
+                 <div className="flex items-center gap-3 mb-4">
+                   <div className="p-3 bg-red-500/20 rounded-xl">
+                     <AlertTriangle className="w-6 h-6 text-red-500 animate-pulse" />
                    </div>
                    <div>
-                       <h3 className="text-red-500 font-bold uppercase tracking-widest text-xs mb-1 flex items-center gap-2">
-                         Coût de l'inaction (Temps Réel) <Info className="w-3 h-3" />
-                       </h3>
-                       <p className="text-zinc-400 text-sm">Votre perte financière cumulée depuis que vous êtes sur cette page.</p>
+                     <h3 className="text-2xl font-black text-white">ET SI JE NE FAIS RIEN ?</h3>
+                     <p className="text-red-300 text-sm">Voici ce qui se passe si vous attendez "juste" 1 an de plus...</p>
                    </div>
+                 </div>
+                 
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                   <div className="bg-black/40 rounded-xl p-4 border border-red-500/20">
+                     <div className="text-xs text-red-400 uppercase font-bold tracking-wider mb-2">💸 Facture Perdue (1 an)</div>
+                     <div className="text-3xl font-black text-white mb-1">{formatEUR(calculationResult.lossIfWait1Year)}</div>
+                     <div className="text-xs text-zinc-500">Argent parti chez votre fournisseur</div>
+                   </div>
+                   <div className="bg-black/40 rounded-xl p-4 border border-red-500/20">
+                     <div className="text-xs text-red-400 uppercase font-bold tracking-wider mb-2">⚡ Économies Ratées</div>
+                     <div className="text-3xl font-black text-white mb-1">{formatEUR(calculationResult.savingsLostIfWait1Year)}</div>
+                     <div className="text-xs text-zinc-500">Ce que vous auriez économisé</div>
+                   </div>
+                 </div>
                </div>
-               <div className="text-4xl md:text-5xl font-mono font-black text-red-500 tabular-nums tracking-tighter drop-shadow-[0_0_15px_rgba(239,68,68,0.5)]">
-                   -{wastedCash.toFixed(4)} €
+
+               <div className="bg-black/60 rounded-2xl p-6 border border-red-500/30 text-center min-w-[280px]">
+                 <div className="text-xs text-red-400 uppercase font-bold tracking-wider mb-2">⏱️ Chaque Seconde d'Hésitation</div>
+                 <div className="text-5xl font-mono font-black text-red-500 tabular-nums mb-2">
+                   -{wastedCash.toFixed(2)} €
+                 </div>
+                 <div className="text-xs text-zinc-500 mb-4">...s'envole pendant que vous lisez cette page</div>
+                 <div className="text-[10px] bg-red-500/10 text-red-300 px-3 py-1 rounded-full inline-block font-bold border border-red-500/20">
+                   LE MEILLEUR MOMENT ? C'ÉTAIT HIER.
+                 </div>
                </div>
+             </div>
            </div>
          </div>
 
@@ -441,12 +451,9 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ data, onRese
         <div className="bg-gradient-to-r from-emerald-900/40 to-black border border-emerald-500/30 rounded-[32px] p-8 flex flex-col md:flex-row items-center justify-between gap-8 relative overflow-hidden">
              <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-10"></div>
              <div className="relative z-10 flex items-center gap-6">
-                 {/* CERCLE AUTONOMIE */}
                  <div className="relative w-36 h-36 flex items-center justify-center">
                     <svg className="w-full h-full transform -rotate-90 filter drop-shadow-[0_0_10px_rgba(16,185,129,0.3)]">
-                      {/* Fond du cercle */}
                       <circle cx="72" cy="72" r="60" fill="transparent" stroke="#064e3b" strokeWidth="8" />
-                      {/* Cercle de progression */}
                       <circle 
                         cx="72" cy="72" r="60" fill="transparent" stroke="#10b981" strokeWidth="8" 
                         strokeLinecap="round"
@@ -465,7 +472,8 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ data, onRese
                  <div>
                     <h2 className="text-3xl md:text-4xl font-black text-white mb-2">AUTONOMIE ÉNERGÉTIQUE</h2>
                     <p className="text-emerald-400 font-bold text-lg">Vous effacez {calculationResult.savingsRatePercent.toFixed(0)}% de votre facture d'électricité.</p>
-                    <p className="text-zinc-500 text-sm mt-1">Calculé sur une consommation de <span className="text-white font-bold">{formatKwh(calculationResult.baseConsumptionKwh)} kWh/an</span></p>
+                    <p className="text-zinc-500 text-sm mt-1">Sur une consommation de <span className="text-white font-bold">{formatKwh(calculationResult.baseConsumptionKwh)} kWh/an</span></p>
+                    <p className="text-emerald-500/80 text-xs mt-2 italic">💡 Pendant que vos voisins regardent leur facture grimper, la vôtre fond.</p>
                  </div>
              </div>
              <div className="relative z-10 bg-emerald-500/10 px-6 py-4 rounded-2xl border border-emerald-500/20 text-center md:text-right min-w-[200px]">
@@ -474,10 +482,269 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ data, onRese
              </div>
         </div>
 
+        {/* ==================== COMPARAISON FINANCEMENT VS CASH ==================== */}
+        <div className="bg-zinc-900/30 border border-white/5 rounded-[32px] p-8">
+          <div className="flex items-center justify-between mb-8">
+            <div>
+              <h2 className="text-2xl font-black text-white flex items-center gap-3 mb-2">
+                <DollarSign className="text-emerald-500" /> FINANCEMENT VS PAIEMENT CASH
+              </h2>
+              <p className="text-zinc-500 text-sm">Quel mode de paiement maximise votre retour sur investissement ?</p>
+            </div>
+            <button 
+              onClick={() => setShowCashComparison(!showCashComparison)}
+              className="text-xs font-bold text-zinc-500 hover:text-white uppercase tracking-widest transition-colors flex items-center gap-2 bg-zinc-800/50 px-4 py-2 rounded-xl border border-white/10"
+            >
+              {showCashComparison ? <Eye className="w-4 h-4" /> : <Eye className="w-4 h-4" />} 
+              {showCashComparison ? 'Masquer' : 'Afficher'}
+            </button>
+          </div>
+
+          {showCashComparison && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              
+              {/* OPTION 1 : FINANCEMENT */}
+              <div className="bg-gradient-to-br from-blue-900/30 to-black border-2 border-blue-500/40 rounded-[24px] p-6 relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-4 opacity-10">
+                  <CreditCard className="w-32 h-32 text-blue-500" />
+                </div>
+                <div className="relative z-10">
+                  <div className="flex items-center gap-3 mb-6">
+                    <div className="p-3 bg-blue-500/20 rounded-xl">
+                      <CreditCard className="w-6 h-6 text-blue-400" />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-black text-white">AVEC FINANCEMENT</h3>
+                      <p className="text-blue-300 text-sm">Étalement de la charge</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4 mb-6">
+                    <div className="flex justify-between items-center p-3 bg-black/40 rounded-xl">
+                      <span className="text-xs text-zinc-400 uppercase font-bold">Gain Total ({projectionYears} ans)</span>
+                      <span className="text-lg font-black text-white">{formatEUR(calculationResult.totalSavingsProjected)}</span>
+                    </div>
+                    <div className="flex justify-between items-center p-3 bg-black/40 rounded-xl">
+                      <span className="text-xs text-zinc-400 uppercase font-bold">Point Mort</span>
+                      <span className="text-lg font-black text-blue-400">{calculationResult.breakEvenPoint} ans</span>
+                    </div>
+                    <div className="flex justify-between items-center p-3 bg-black/40 rounded-xl">
+                      <span className="text-xs text-zinc-400 uppercase font-bold">ROI Annuel</span>
+                      <span className="text-lg font-black text-emerald-400">+{calculationResult.roiPercentage.toFixed(1)}%</span>
+                    </div>
+                  </div>
+
+                  <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4">
+                    <h4 className="text-xs font-bold text-blue-400 uppercase mb-2">✅ Avantages</h4>
+                    <ul className="space-y-2 text-xs text-zinc-300">
+                      <li className="flex items-start gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                        <span>Aucun cash bloqué - Vous gardez votre épargne liquide</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                        <span>Effort mensuel maîtrisé ({formatMoney(Math.abs(calculationResult.monthlyEffortYear1))})</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                        <span>Vous profitez immédiatement des économies</span>
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+
+              {/* OPTION 2 : CASH */}
+              <div className="bg-gradient-to-br from-emerald-900/30 to-black border-2 border-emerald-500/40 rounded-[24px] p-6 relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-4 opacity-10">
+                  <Banknote className="w-32 h-32 text-emerald-500" />
+                </div>
+                <div className="relative z-10">
+                  <div className="flex items-center gap-3 mb-6">
+                    <div className="p-3 bg-emerald-500/20 rounded-xl">
+                      <Banknote className="w-6 h-6 text-emerald-400" />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-black text-white">PAIEMENT CASH</h3>
+                      <p className="text-emerald-300 text-sm">Rentabilité maximale</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4 mb-6">
+                    <div className="flex justify-between items-center p-3 bg-black/40 rounded-xl">
+                      <span className="text-xs text-zinc-400 uppercase font-bold">Gain Total ({projectionYears} ans)</span>
+                      <span className="text-lg font-black text-emerald-400">{formatEUR(calculationResult.totalSavingsProjectedCash)}</span>
+                    </div>
+                    <div className="flex justify-between items-center p-3 bg-black/40 rounded-xl">
+                      <span className="text-xs text-zinc-400 uppercase font-bold">Point Mort</span>
+                      <span className="text-lg font-black text-emerald-400">{calculationResult.breakEvenPointCash} ans</span>
+                    </div>
+                    <div className="flex justify-between items-center p-3 bg-black/40 rounded-xl">
+                      <span className="text-xs text-zinc-400 uppercase font-bold">ROI Annuel</span>
+                      <span className="text-lg font-black text-emerald-400">+{calculationResult.roiPercentageCash.toFixed(1)}%</span>
+                    </div>
+                  </div>
+
+                  <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-4">
+                    <h4 className="text-xs font-bold text-emerald-400 uppercase mb-2">✅ Avantages</h4>
+                    <ul className="space-y-2 text-xs text-zinc-300">
+                      <li className="flex items-start gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                        <span>ROI supérieur (+{(calculationResult.roiPercentageCash - calculationResult.roiPercentage).toFixed(1)}% vs crédit)</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                        <span>Point mort plus rapide ({calculationResult.breakEvenPointCash} ans vs {calculationResult.breakEvenPoint})</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                        <span>Pas d'intérêts bancaires - 100% des économies pour vous</span>
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          )}
+
+          {/* VERDICT */}
+          <div className="mt-6 bg-gradient-to-r from-purple-900/20 to-pink-900/20 border border-purple-500/30 rounded-2xl p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <Target className="w-6 h-6 text-purple-400" />
+              <h4 className="text-lg font-black text-white">💡 LE VERDICT DU CONSEILLER</h4>
+            </div>
+            <p className="text-zinc-300 text-sm leading-relaxed">
+              <span className="text-emerald-400 font-bold">Cash optimal</span> si vous avez l'épargne disponible (+{(calculationResult.totalSavingsProjectedCash - calculationResult.totalSavingsProjected).toFixed(0)}€ de gain sur {projectionYears} ans). 
+              <span className="text-blue-400 font-bold"> Financement intelligent</span> si vous préférez garder votre trésorerie liquide pour d'autres projets. 
+              <span className="text-white font-bold"> Dans les deux cas, vous gagnez.</span> La vraie perte ? C'est de ne rien faire.
+            </p>
+          </div>
+        </div>
+
+        {/* ==================== TIMELINE VISUELLE : VOTRE ARGENT DANS 5-10-20 ANS ==================== */}
+        <div className="bg-zinc-900/50 border border-white/5 rounded-[32px] p-8">
+          <h2 className="text-2xl font-black text-white mb-8 flex items-center gap-3">
+            <Clock className="text-blue-500" /> OÙ SERA VOTRE ARGENT ?
+          </h2>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {[
+              { year: 5, color: 'orange' },
+              { year: 10, color: 'blue' },
+              { year: 20, color: 'emerald' }
+            ].map(({year, color}) => {
+              const detail = calculationResult.details[year - 1];
+              const detailCash = calculationResult.detailsCash[year - 1];
+              
+              return (
+                <div key={year} className={`bg-gradient-to-br from-${color}-900/20 to-black border border-${color}-500/30 rounded-2xl p-6 relative overflow-hidden`}>
+                  <div className="absolute top-0 right-0 text-[120px] font-black text-white/5 leading-none pr-4 pt-2">
+                    {year}
+                  </div>
+                  <div className="relative z-10">
+                    <div className={`text-${color}-400 text-sm font-bold uppercase tracking-wider mb-4`}>
+                      Dans {year} ans
+                    </div>
+                    
+                    <div className="space-y-3 mb-4">
+                      <div className="bg-black/40 rounded-xl p-3">
+                        <div className="text-[10px] text-zinc-500 uppercase font-bold mb-1">Avec Solaire (Crédit)</div>
+                        <div className={`text-2xl font-black ${detail.cumulativeSavings > 0 ? 'text-emerald-400' : 'text-orange-400'}`}>
+                          {formatEUR(detail.cumulativeSavings)}
+                        </div>
+                      </div>
+                      
+                      <div className="bg-black/40 rounded-xl p-3">
+                        <div className="text-[10px] text-zinc-500 uppercase font-bold mb-1">Avec Solaire (Cash)</div>
+                        <div className={`text-2xl font-black ${detailCash.cumulativeSavings > 0 ? 'text-emerald-400' : 'text-orange-400'}`}>
+                          {formatEUR(detailCash.cumulativeSavings)}
+                        </div>
+                      </div>
+                      
+                      <div className="bg-red-950/30 rounded-xl p-3 border border-red-500/20">
+                        <div className="text-[10px] text-red-400 uppercase font-bold mb-1">Sans Rien Faire</div>
+                        <div className="text-2xl font-black text-red-500">
+                          -{formatEUR(detail.cumulativeSpendNoSolar)}
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className={`text-xs text-${color}-300/80 italic`}>
+                      {year === 5 && "Vous commencez à voir la différence"}
+                      {year === 10 && "L'écart se creuse significativement"}
+                      {year === 20 && "C'est un capital transmissible"}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* ==================== COMPARAISON AVEC AUTRES PLACEMENTS ==================== */}
+        <div className="bg-gradient-to-br from-purple-900/20 to-black border border-purple-500/30 rounded-[32px] p-8">
+          <h2 className="text-2xl font-black text-white mb-6 flex items-center gap-3">
+            <Award className="text-yellow-500" /> COMPARAISON AVEC VOS AUTRES OPTIONS
+          </h2>
+          
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            {[
+              { name: 'Livret A', roi: 3, icon: Landmark, color: 'blue', desc: 'Capital bloqué' },
+              { name: 'Assurance Vie', roi: 3.5, icon: ShieldAlert, color: 'purple', desc: 'Frais de gestion' },
+              { name: 'SCPI/Immobilier', roi: 4.5, icon: Home, color: 'orange', desc: 'Illiquide' },
+              { name: 'SOLAIRE', roi: calculationResult.roiPercentage, icon: Sun, color: 'emerald', desc: 'Sans bloquer de cash', highlight: true }
+            ].map((item) => (
+              <div 
+                key={item.name}
+                className={`bg-gradient-to-br ${item.highlight ? `from-${item.color}-900/40 to-black border-2 border-${item.color}-500 shadow-lg shadow-${item.color}-500/20` : `from-${item.color}-900/20 to-black border border-${item.color}-500/30`} rounded-2xl p-5 relative overflow-hidden transition-all hover:scale-105`}
+              >
+                {item.highlight && (
+                  <div className="absolute top-2 right-2">
+                    <span className="bg-yellow-500 text-black text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
+                      Meilleur Choix
+                    </span>
+                  </div>
+                )}
+                
+                <div className="flex items-center gap-3 mb-4">
+                  <div className={`p-2 bg-${item.color}-500/20 rounded-lg`}>
+                    <item.icon className={`w-5 h-5 text-${item.color}-400`} />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-sm font-black text-white">{item.name}</h3>
+                    <p className={`text-[10px] text-${item.color}-400`}>{item.desc}</p>
+                  </div>
+                </div>
+                
+                <div className={`text-4xl font-black text-${item.color}-400 mb-2`}>
+                  {item.roi.toFixed(1)}%
+                </div>
+                <div className="text-[10px] text-zinc-500 uppercase font-bold">Rendement annuel moyen</div>
+                
+                {item.highlight && (
+                  <div className="mt-3 pt-3 border-t border-emerald-500/20">
+                    <p className="text-xs text-emerald-300 font-bold">
+                      + Vous produisez votre propre énergie
+                    </p>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+          
+          <div className="mt-6 bg-black/40 border border-white/10 rounded-xl p-4">
+            <p className="text-sm text-zinc-300">
+              <span className="text-white font-bold">💡 La différence ?</span> Les placements classiques <span className="text-red-400">immobilisent votre capital</span>. 
+              Le solaire vous permet de <span className="text-emerald-400 font-bold">financer l'installation avec vos économies futures</span>, 
+              tout en gardant votre épargne disponible pour d'autres opportunités.
+            </p>
+          </div>
+        </div>
+
         {/* --- HERO SECTION --- */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           
-          {/* CARTE PRINCIPALE : LE GAIN NET */}
           <div className="lg:col-span-8 relative group flex">
              <div className="absolute -inset-1 bg-gradient-to-r from-blue-600 to-teal-400 rounded-[32px] blur opacity-20 group-hover:opacity-40 transition duration-1000"></div>
              
@@ -489,18 +756,22 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ data, onRese
                 <div className="relative z-10">
                    <div className="flex flex-wrap items-center gap-3 mb-6">
                       <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-bold uppercase tracking-wider">
-                          <Lock className="w-3 h-3" /> Projection sur {projectionYears} ans
+                          <Lock className="w-3 h-3" /> Projection {projectionYears} ans
+                      </div>
+                      <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold uppercase tracking-wider">
+                          <TrendingUp className="w-3 h-3" /> ROI {calculationResult.roiPercentage.toFixed(1)}%/an
                       </div>
                    </div>
                    
-                   <h1 className="text-zinc-400 font-medium text-lg mb-2">Capital Sauvegardé (Net d'Impôts)</h1>
+                   <h1 className="text-zinc-400 font-medium text-lg mb-2">Capital Patrimonial Sécurisé</h1>
                    <div className="flex items-baseline gap-4 flex-wrap">
                      <span className={`text-5xl md:text-8xl font-black tracking-tighter drop-shadow-2xl ${calculationResult.totalSavingsProjected > 0 ? 'text-white' : 'text-red-500'}`}>
                        {formatEUR(calculationResult.totalSavingsProjected)}
                      </span>
                    </div>
                    <p className="text-zinc-400 mt-4 max-w-lg leading-relaxed border-l-2 border-blue-500 pl-4">
-                     C'est la somme exacte qui restera sur votre compte en banque au lieu de partir chez votre fournisseur. Une rente défiscalisée, garantie et transmissible.
+                     C'est votre nouvelle rente énergétique. Défiscalisée, garantie 25 ans, et transmissible à vos enfants. 
+                     <span className="text-emerald-400 font-bold"> Pendant que d'autres louent leur électricité, vous êtes propriétaire.</span>
                    </p>
                 </div>
 
@@ -527,27 +798,28 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ data, onRese
              </div>
           </div>
 
-          {/* SIDEBAR : EFFORT D'ÉPARGNE & COMPARAISON MENSUELLE */}
           <div className="lg:col-span-4 space-y-6 flex flex-col h-full">
              
-             {/* COMPARATIF BANCAIRE */}
              <div className="bg-gradient-to-br from-indigo-900/40 to-black border border-indigo-500/30 rounded-[30px] p-6 relative overflow-hidden flex-1">
                 <div className="flex items-center gap-2 mb-4">
                    <Landmark className="w-5 h-5 text-indigo-400" />
                    <h3 className="text-xs font-bold uppercase tracking-wider text-indigo-300">Équivalent Bancaire</h3>
                 </div>
                 <p className="text-sm text-zinc-400 mb-4">
-                   Pour générer <span className="text-white font-bold">{formatEUR(calculationResult.averageYearlyGain)}/an</span> d'intérêts avec votre banque, vous devriez bloquer cette somme sur un compte :
+                   Pour générer <span className="text-white font-bold">{formatEUR(calculationResult.averageYearlyGain)}/an</span> avec un Livret A, 
+                   il vous faudrait bloquer :
                 </p>
                 <div className="text-3xl font-black text-white mb-2 tracking-tight">
                    {formatEUR(calculationResult.bankEquivalentCapital)}
                 </div>
-                <div className="text-[10px] bg-indigo-500/20 text-indigo-300 inline-block px-2 py-1 rounded font-bold">
+                <div className="text-[10px] bg-indigo-500/20 text-indigo-300 inline-block px-2 py-1 rounded font-bold mb-3">
                    ICI, VOUS NE BLOQUEZ RIEN.
                 </div>
+                <p className="text-xs text-zinc-500 italic mt-3 border-t border-white/5 pt-3">
+                  💰 Avec le solaire, votre argent reste libre pendant que vous générez des revenus.
+                </p>
              </div>
 
-             {/* CARTE : EFFORT D'ÉPARGNE MENSUEL */}
              <div className={`relative rounded-[30px] p-1 flex-1 ${calculationResult.monthlyEffortYear1 > 0 ? 'bg-gradient-to-br from-orange-500/20 to-red-500/20' : 'bg-gradient-to-br from-emerald-500/20 to-teal-500/20'}`}>
                 <div className="bg-zinc-950 rounded-[28px] p-6 h-full flex flex-col justify-between relative overflow-hidden">
                     <div className="relative z-10">
@@ -564,7 +836,7 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ data, onRese
                             <div className="group relative">
                                 <HelpCircle className="w-4 h-4 text-zinc-600 hover:text-white cursor-help" />
                                 <div className="absolute right-0 bottom-full mb-2 w-48 bg-zinc-800 text-xs p-2 rounded-lg text-zinc-300 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
-                                    C'est la différence entre ce que vous payez aujourd'hui et ce que vous paierez demain.
+                                    Différence entre votre budget actuel et futur
                                 </div>
                             </div>
                         </div>
@@ -576,15 +848,14 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ data, onRese
                              <span className="text-sm text-zinc-500 font-bold">/mois</span>
                         </div>
 
-                        {/* EXPLICATION DU CALCUL */}
                         <div className="mt-4 pt-4 border-t border-white/5 space-y-2">
-                           <div className="text-[10px] font-mono text-zinc-500 mb-2 uppercase tracking-wide">Détail du calcul :</div>
+                           <div className="text-[10px] font-mono text-zinc-500 mb-2 uppercase tracking-wide">Détail :</div>
                            <div className="flex justify-between text-xs text-zinc-400">
-                               <span>Crédit + Reste Facture :</span>
+                               <span>Nouveau Budget :</span>
                                <span className="font-bold text-white">{formatMoney(calculationResult.newMonthlyBillYear1)}</span>
                            </div>
                            <div className="flex justify-between text-xs text-zinc-400">
-                               <span>Ancienne Facture :</span>
+                               <span>Ancien Budget :</span>
                                <span className="font-bold text-red-400">- {formatMoney(calculationResult.oldMonthlyBillYear1)}</span>
                            </div>
                            <div className={`flex justify-between text-xs font-bold pt-1 border-t border-white/10 ${calculationResult.monthlyEffortYear1 > 0 ? 'text-orange-400' : 'text-emerald-400'}`}>
@@ -592,6 +863,12 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ data, onRese
                                <span>{calculationResult.monthlyEffortYear1 > 0 ? '+' : ''}{formatMoney(Math.abs(calculationResult.monthlyEffortYear1))}</span>
                            </div>
                         </div>
+                        
+                        {calculationResult.monthlyEffortYear1 > 0 && (
+                          <p className="text-[10px] text-orange-300/70 italic mt-3 border-t border-white/5 pt-3">
+                            ⚡ Cet effort est TEMPORAIRE (durée du crédit). Après, vous économisez {formatMoney(calculationResult.oldMonthlyBillYear1)}/mois à vie.
+                          </p>
+                        )}
                     </div>
                 </div>
              </div>
@@ -599,18 +876,18 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ data, onRese
           </div>
         </div>
 
-        {/* --- GRAPH 3 : BILAN TOTAL SUR N ANS (CUSTOM BARS) --- */}
+        {/* --- GRAPH 3 : BILAN TOTAL --- */}
         <div className="bg-zinc-900/50 border border-white/5 rounded-[32px] p-8 backdrop-blur-sm">
-           <h2 className="text-xl font-black text-white mb-8 flex items-center gap-3">
+           <h2 className="text-xl font-black text-white mb-4 flex items-center gap-3">
               <Scale className="text-white" /> BILAN TOTAL SUR {projectionYears} ANS
            </h2>
+           <p className="text-zinc-500 text-sm mb-8">💡 Imaginez ces barres comme deux comptes bancaires : l'un qui se vide (rouge), l'autre qui se remplit (bleu).</p>
            
            <div className="flex flex-col gap-8">
-               {/* BARRE 1 : SANS SOLAIRE */}
                <div className="group">
                   <div className="flex justify-between items-end mb-3">
                      <span className="text-zinc-400 font-bold uppercase text-xs tracking-wider flex items-center gap-2">
-                        <div className="w-2 h-2 rounded-full bg-red-500"></div> Situation Actuelle (Perte Sèche)
+                        <div className="w-2 h-2 rounded-full bg-red-500"></div> Sans Solaire (Argent Perdu)
                      </span>
                      <span className="text-3xl font-black text-white tabular-nums">{formatEUR(calculationResult.totalSpendNoSolar)}</span>
                   </div>
@@ -622,14 +899,13 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ data, onRese
                          <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20"></div>
                       </div>
                   </div>
-                  <p className="text-xs text-red-500/60 mt-2 font-mono ml-1">Argent perdu définitivement chez le fournisseur.</p>
+                  <p className="text-xs text-red-500/60 mt-2 font-mono ml-1">💸 Cet argent est parti pour toujours.</p>
                </div>
 
-               {/* BARRE 2 : AVEC SOLAIRE */}
                <div className="group">
                   <div className="flex justify-between items-end mb-3">
                      <span className="text-zinc-400 font-bold uppercase text-xs tracking-wider flex items-center gap-2">
-                        <div className="w-2 h-2 rounded-full bg-blue-500"></div> Avec Solaire (Investissement)
+                        <div className="w-2 h-2 rounded-full bg-blue-500"></div> Avec Solaire (Investissement Patrimonial)
                      </span>
                      <span className="text-3xl font-black text-blue-400 tabular-nums">{formatEUR(calculationResult.totalSpendSolar)}</span>
                   </div>
@@ -642,19 +918,17 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ data, onRese
                       </div>
                   </div>
                   <div className="flex justify-between items-center mt-2">
-                      <p className="text-xs text-blue-500/60 font-mono ml-1">Dépense transformée en patrimoine.</p>
+                      <p className="text-xs text-blue-500/60 font-mono ml-1">⚡ Cette dépense génère un actif qui produit pendant 25+ ans.</p>
                       <div className="bg-emerald-500/10 text-emerald-400 px-3 py-1 rounded-lg text-sm font-bold border border-emerald-500/20">
-                          Vous économisez {formatEUR(calculationResult.totalSpendNoSolar - calculationResult.totalSpendSolar)}
+                          💰 Différence : {formatEUR(calculationResult.totalSpendNoSolar - calculationResult.totalSpendSolar)}
                       </div>
                   </div>
                </div>
            </div>
         </div>
 
-
         {/* --- COMPARATIF LOCATAIRE VS PROPRIETAIRE --- */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-stretch">
-           {/* Option A: FOURNISSEUR ACTUEL */}
            <div className="bg-red-950/10 border border-red-900/30 rounded-[24px] p-6 relative overflow-hidden flex flex-col h-full group hover:bg-red-950/20 transition-colors">
               <div className="flex items-start gap-5 mb-4">
                   <div className="p-3 bg-red-500/10 rounded-xl shrink-0 border border-red-500/20 group-hover:scale-105 transition-transform mt-1">
@@ -662,11 +936,11 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ data, onRese
                   </div>
                   <div className="flex-1">
                      <div className="flex justify-between items-start mb-2">
-                        <h3 className="text-lg font-bold text-white">LOCATAIRE DU RÉSEAU</h3>
-                        <span className="text-[10px] font-bold uppercase bg-red-500/20 text-red-400 px-2 py-0.5 rounded">Le Passé</span>
+                        <h3 className="text-lg font-bold text-white">LOCATAIRE ÉNERGÉTIQUE</h3>
+                        <span className="text-[10px] font-bold uppercase bg-red-500/20 text-red-400 px-2 py-0.5 rounded">Modèle Dépassé</span>
                      </div>
                      <p className="text-red-400/90 text-sm font-medium leading-relaxed">
-                        Vous payez un loyer énergétique à fonds perdus qui augmente chaque année.
+                        Vous louez l'électricité que vous consommez. Chaque euro payé disparaît.
                      </p>
                   </div>
               </div>
@@ -674,23 +948,29 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ data, onRese
               <ul className="space-y-3 mb-6 flex-1">
                  <li className="flex items-center gap-2 text-xs text-zinc-300">
                      <AlertTriangle className="w-4 h-4 text-red-500 shrink-0" /> 
-                     <span>Vous subissez 100% des hausses de tarifs.</span>
+                     <span>Vous subissez 100% des hausses (inflation sans fin)</span>
                  </li>
                  <li className="flex items-center gap-2 text-xs text-zinc-300">
                      <AlertTriangle className="w-4 h-4 text-red-500 shrink-0" /> 
-                     <span>0€ de capital créé à la fin (Facture éternelle).</span>
+                     <span>0€ de capital créé après 20 ans (facture éternelle)</span>
                  </li>
                  <li className="flex items-center gap-2 text-xs text-zinc-300">
                      <AlertTriangle className="w-4 h-4 text-red-500 shrink-0" /> 
-                     <span>Dépendance totale aux marchés de l'énergie.</span>
+                     <span>Dépendance totale aux décisions politiques</span>
+                 </li>
+                 <li className="flex items-center gap-2 text-xs text-zinc-300">
+                     <AlertTriangle className="w-4 h-4 text-red-500 shrink-0" /> 
+                     <span>Votre facture finance les profits des actionnaires</span>
                  </li>
               </ul>
               <div className="w-full h-1.5 bg-zinc-800 rounded-full overflow-hidden mt-auto">
                  <div className="h-full bg-red-600 w-full animate-pulse"></div>
               </div>
+              <p className="text-[10px] text-red-500/60 italic mt-3 text-center">
+                📉 Pendant que vous payez, votre pouvoir d'achat s'érode.
+              </p>
            </div>
 
-           {/* Option B: SOLAIRE (MISE EN AVANT) */}
            <div className="bg-gradient-to-r from-blue-900/30 to-black border border-blue-500/40 rounded-[24px] p-6 relative overflow-hidden flex flex-col h-full shadow-lg shadow-blue-500/10 group hover:border-blue-500/60 transition-all">
               <div className="flex items-start gap-5 mb-4">
                   <div className="p-3 bg-blue-500 rounded-xl shrink-0 shadow-lg shadow-blue-500/30 group-hover:scale-105 transition-transform mt-1">
@@ -699,10 +979,10 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ data, onRese
                   <div className="flex-1">
                      <div className="flex justify-between items-start mb-2">
                         <h3 className="text-lg font-bold text-white">PROPRIÉTAIRE PRODUCTEUR</h3>
-                        <span className="text-[10px] font-bold uppercase bg-blue-500 text-white px-2 py-0.5 rounded shadow-lg shadow-blue-500/50">L'Avenir</span>
+                        <span className="text-[10px] font-bold uppercase bg-blue-500 text-white px-2 py-0.5 rounded shadow-lg shadow-blue-500/50">Votre Liberté</span>
                      </div>
                      <p className="text-blue-300 text-sm font-medium leading-relaxed">
-                        Vous devenez propriétaire de votre centrale et bloquez votre coût énergétique.
+                        Vous possédez votre centrale. Chaque kWh produit vous appartient.
                      </p>
                   </div>
               </div>
@@ -710,34 +990,42 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ data, onRese
               <ul className="space-y-3 mb-6 flex-1">
                  <li className="flex items-center gap-2 text-xs text-zinc-300">
                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" /> 
-                     <span>Prix du kWh bloqué et garanti pour 30 ans.</span>
+                     <span>Prix du kWh bloqué et garanti pendant 30 ans</span>
                  </li>
                  <li className="flex items-center gap-2 text-xs text-zinc-300">
                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" /> 
-                     <span>Votre facture devient un investissement patrimonial.</span>
+                     <span>Vous créez un patrimoine transmissible et valorisable</span>
                  </li>
                  <li className="flex items-center gap-2 text-xs text-zinc-300">
                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" /> 
-                     <span>Indépendance et sécurité énergétique (Auto-consommation).</span>
+                     <span>Indépendance face aux crises énergétiques</span>
+                 </li>
+                 <li className="flex items-center gap-2 text-xs text-zinc-300">
+                     <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" /> 
+                     <span>Vous êtes la banque : vous financez avec vos économies futures</span>
                  </li>
               </ul>
               <div className="w-full h-1.5 bg-zinc-800 rounded-full overflow-hidden mt-auto">
                  <div className="h-full bg-blue-500 w-[70%]"></div>
               </div>
+              <p className="text-[10px] text-emerald-400 font-bold italic mt-3 text-center">
+                🚀 Pendant que vous économisez, votre patrimoine grandit.
+              </p>
            </div>
         </div>
 
         {/* --- SECTION GARANTIES BLINDÉES --- */}
         <div className="bg-zinc-900/30 border border-white/5 p-6 rounded-[24px]">
-            <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
-                <ShieldAlert className="text-amber-500 w-5 h-5" /> BLINDAGE & SÉCURITÉ TOTALE
+            <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2">
+                <ShieldAlert className="text-amber-500 w-5 h-5" /> SÉCURITÉ MAXIMALE & GARANTIES BLINDÉES
             </h3>
+            <p className="text-zinc-500 text-sm mb-6">💡 Votre installation est protégée comme un coffre-fort. Aucun risque technique ou financier.</p>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {[
-                    { title: "Panneaux", val: "À VIE", sub: "Garantie Performance", detail: "Perte Max 0.4%/an", icon: Sun },
-                    { title: "Micro-Onduleurs", val: "À VIE", sub: "Garantie Pièce", detail: "Remplacement à neuf", icon: Zap },
-                    { title: "Main d'Oeuvre", val: "À VIE", sub: "Intervention Incluse", detail: "Aucun frais cachés", icon: Wrench },
-                    { title: "Déplacement", val: "À VIE", sub: "Partout en France", detail: "Service Premium", icon: Truck },
+                    { title: "Panneaux", val: "25 ANS", sub: "Garantie Performance", detail: "Perte Max 0.4%/an", icon: Sun },
+                    { title: "Micro-Onduleurs", val: "25 ANS", sub: "Garantie Pièce", detail: "Remplacement à neuf", icon: Zap },
+                    { title: "Main d'Oeuvre", val: "25 ANS", sub: "Intervention Incluse", detail: "Aucun frais cachés", icon: Wrench },
+                    { title: "Déplacement", val: "ILLIMITÉ", sub: "Partout en France", detail: "Service Premium", icon: Truck },
                 ].map((item, i) => (
                     <div key={i} className="bg-gradient-to-br from-amber-500/10 to-yellow-600/5 border border-amber-500/20 p-4 rounded-xl flex flex-col items-center text-center group hover:bg-amber-500/10 transition-colors">
                         <div className="w-10 h-10 bg-amber-500/20 rounded-full flex items-center justify-center mb-2 text-amber-500">
@@ -751,22 +1039,26 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ data, onRese
                     </div>
                 ))}
             </div>
+            <div className="mt-6 bg-amber-500/5 border border-amber-500/20 rounded-xl p-4 text-center">
+              <p className="text-sm text-amber-300 font-bold">
+                🛡️ Résultat : Vous dormez tranquille pendant que vos panneaux génèrent des revenus 24/7.
+              </p>
+            </div>
         </div>
 
-        {/* --- GRAPH 1 : BUDGET MENSUEL STRUCTURE (BARRES HORIZONTALES) --- */}
-         <div className="bg-zinc-900/50 border border-white/10 rounded-[30px] p-8 backdrop-blur-sm">
+        {/* --- GRAPHIQUES (CONSERVÉS) --- */}
+        <div className="bg-zinc-900/50 border border-white/10 rounded-[30px] p-8 backdrop-blur-sm">
             <div className="flex items-center justify-between mb-8">
                 <div className="flex items-center gap-2">
                     <Scale className="w-5 h-5 text-zinc-400" />
                     <h3 className="text-lg font-bold uppercase tracking-wider text-white">Structure du Budget (Mensuel)</h3>
                 </div>
                 <div className="text-xs bg-zinc-800 px-3 py-1 rounded-full text-zinc-400 border border-white/5">
-                    Année 1 - Comparatif Immédiat
+                    Année 1 - Comparatif
                 </div>
             </div>
             
             <div className="space-y-6">
-                {/* BARRE 1 : SANS SOLAIRE */}
                 <div className="relative">
                    <div className="flex justify-between items-end text-sm font-bold mb-2 z-10 relative">
                       <span className="text-zinc-400 uppercase tracking-wider text-xs">Situation Actuelle</span>
@@ -780,14 +1072,12 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ data, onRese
                    </div>
                 </div>
 
-                {/* BARRE 2 : AVEC SOLAIRE */}
                 <div className="relative">
                    <div className="flex justify-between items-end text-sm font-bold mb-2 z-10 relative">
                       <span className="text-zinc-400 uppercase tracking-wider text-xs">Projet Solaire</span>
                       <span className="text-white text-lg">{formatMoney(calculationResult.newMonthlyBillYear1)} /mois</span>
                    </div>
                    <div className="h-16 w-full bg-zinc-950 rounded-xl overflow-hidden relative border border-white/5 flex">
-                      {/* Partie Crédit */}
                       <div 
                         style={{width: `${(calculationResult.year1.creditPayment / 12 / calculationResult.newMonthlyBillYear1) * 100}%`}} 
                         className="h-full bg-blue-600 flex flex-col justify-center px-4 border-r border-blue-400/30 relative"
@@ -795,37 +1085,25 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ data, onRese
                          <span className="text-[10px] font-black text-blue-200 uppercase tracking-wide">Crédit</span>
                          <span className="text-xs font-bold text-white">{formatMoney(calculationResult.year1.creditPayment / 12)}</span>
                       </div>
-                      {/* Partie Reste */}
                       <div 
                         style={{width: `${(calculationResult.year1.edfResidue / 12 / calculationResult.newMonthlyBillYear1) * 100}%`}} 
                         className="h-full bg-amber-500 flex flex-col justify-center px-4 relative"
                       >
-                         <span className="text-[10px] font-black text-amber-900 uppercase tracking-wide">Reste Facture</span>
+                         <span className="text-[10px] font-black text-amber-900 uppercase tracking-wide">Reste</span>
                          <span className="text-xs font-bold text-white">{formatMoney(calculationResult.year1.edfResidue / 12)}</span>
                       </div>
-                   </div>
-                   
-                   {/* Fleche de différence */}
-                   <div className="absolute top-1/2 -right-4 translate-x-full -translate-y-1/2 hidden md:block">
-                        <div className="bg-zinc-800 text-white text-xs font-bold px-3 py-2 rounded-lg border border-white/10 whitespace-nowrap">
-                            Différentiel : {calculationResult.monthlyEffortYear1 > 0 ? '+' : ''}{formatMoney(Math.abs(calculationResult.monthlyEffortYear1))}
-                        </div>
                    </div>
                 </div>
             </div>
          </div>
 
-
-        {/* ==================== NOUVEAU GRAPHIQUE : ÉCONOMIES ANNUELLES ==================== */}
         <div className="bg-zinc-900/50 border border-white/5 rounded-[32px] p-8 backdrop-blur-sm">
             <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
                 <div>
                     <h2 className="text-xl font-black text-white flex items-center gap-3">
                         <TrendingUp className="text-emerald-500" /> ÉCONOMIES ANNUELLES
                     </h2>
-                    <p className="text-zinc-500 text-sm mt-1 max-w-xl">
-                        Votre gain net par année (rouge = effort d'investissement, vert = rentabilité)
-                    </p>
+                    <p className="text-zinc-500 text-sm mt-1">Votre gain net par année (rouge = investissement, vert = rentabilité)</p>
                 </div>
             </div>
 
@@ -887,7 +1165,6 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ data, onRese
             </div>
         </div>
 
-        {/* --- GRAPH 2 : LE GOUFFRE FINANCIER (CISEAUX) AMÉLIORÉ --- */}
         <div className="bg-zinc-900/50 border border-white/5 rounded-[32px] p-8 backdrop-blur-sm">
             <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
                 <div>
@@ -895,7 +1172,7 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ data, onRese
                         <TrendingDown className="text-red-500" /> LE GOUFFRE FINANCIER
                     </h2>
                     <p className="text-zinc-500 text-sm mt-1 max-w-xl">
-                        En rouge : L'argent que vous donnez à votre fournisseur. En bleu : Votre investissement borné dans le temps.
+                        Rouge : Argent donné au fournisseur. Bleu : Investissement patrimonial.
                     </p>
                 </div>
                 
@@ -987,22 +1264,21 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ data, onRese
         <div className="bg-zinc-900/30 border border-white/5 rounded-[32px] overflow-hidden">
             <div className="p-8 border-b border-white/5 flex flex-col md:flex-row items-center justify-between gap-4">
                 <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                    <Table2 className="text-zinc-500" /> Plan de Financement
+                    <Table2 className="text-zinc-500" /> Plan de Financement Détaillé
                 </h3>
                 
-                {/* SWITCH VUE ANNUELLE / MENSUELLE */}
                 <div className="flex bg-black/40 p-1 rounded-xl border border-white/5">
                    <button 
                      onClick={() => setTableView('yearly')}
                      className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${tableView === 'yearly' ? 'bg-blue-600 text-white shadow-lg' : 'text-zinc-500 hover:text-white'}`}
                    >
-                     <Calendar className="w-3 h-3" /> Vue Annuelle
+                     <Calendar className="w-3 h-3" /> Annuel
                    </button>
                    <button 
                      onClick={() => setTableView('monthly')}
                      className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${tableView === 'monthly' ? 'bg-blue-600 text-white shadow-lg' : 'text-zinc-500 hover:text-white'}`}
                    >
-                     <CalendarDays className="w-3 h-3" /> Vue Mensuelle
+                     <CalendarDays className="w-3 h-3" /> Mensuel
                    </button>
                 </div>
             </div>
@@ -1011,10 +1287,10 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ data, onRese
                     <thead>
                         <tr className="bg-black/40 text-[10px] uppercase tracking-wider text-zinc-500 border-b border-white/5">
                             <th className="p-4 font-bold text-center">Année</th>
-                            <th className="p-4 font-bold text-red-400">Facture Élec. (Sans Projet)</th>
-                            <th className="p-4 font-bold text-blue-400 bg-blue-500/5 border-l border-white/5">Mensualité Crédit</th>
+                            <th className="p-4 font-bold text-red-400">Sans Solaire</th>
+                            <th className="p-4 font-bold text-blue-400 bg-blue-500/5 border-l border-white/5">Crédit</th>
                             <th className="p-4 font-bold text-amber-400 bg-blue-500/5">Reste Facture</th>
-                            <th className="p-4 font-bold text-white bg-blue-500/10 border-r border-white/5">Total Décaissé</th>
+                            <th className="p-4 font-bold text-white bg-blue-500/10 border-r border-white/5">Total Avec Solaire</th>
                             <th className="p-4 font-bold text-center border-r border-white/5">
                                {tableView === 'yearly' ? "EFFORT ANNUEL" : "EFFORT MENSUEL"}
                             </th>
@@ -1023,7 +1299,6 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ data, onRese
                     </thead>
                     <tbody className="text-xs">
                         {calculationResult.slicedDetails.map((row, index) => {
-                            // Si vue mensuelle, on divise tout par 12 (sauf Cumul)
                             const div = tableView === 'monthly' ? 12 : 1;
                             
                             const displayEdfOld = row.edfBillWithoutSolar / div;
@@ -1065,29 +1340,40 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ data, onRese
             </div>
         </div>
 
-        {/* --- AI PITCH SECTION --- */}
+        {/* --- CTA FINAL ULTRA PERSUASIF --- */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-12 mb-12">
            <div className="bg-gradient-to-br from-zinc-900 to-black border border-zinc-800 rounded-[32px] p-8">
                <div className="flex items-center gap-3 mb-6">
                    <div className="p-2 bg-purple-500/20 rounded-lg">
                        <Eye className="w-5 h-5 text-purple-400" />
                    </div>
-                   <h3 className="text-lg font-bold text-white">Le Constat est Sans Appel</h3>
+                   <h3 className="text-lg font-bold text-white">L'IA A Analysé Votre Situation</h3>
                </div>
                <div className="prose prose-invert prose-p:text-zinc-400 prose-strong:text-white leading-relaxed">
                    <p>{data.salesPitch}</p>
                </div>
            </div>
 
-           <div className="bg-gradient-to-br from-blue-900/20 to-black border border-blue-500/20 rounded-[32px] p-8 flex flex-col justify-center items-center text-center relative overflow-hidden group">
+           <div className="bg-gradient-to-br from-blue-900/20 to-black border-2 border-blue-500/40 rounded-[32px] p-8 flex flex-col justify-center items-center text-center relative overflow-hidden group">
                <div className="absolute inset-0 bg-blue-500/5 group-hover:bg-blue-500/10 transition-colors"></div>
                <div className="relative z-10">
-                   <h3 className="text-2xl font-black text-white mb-4">Ne laissez plus votre fournisseur drainer votre compte.</h3>
-                   <p className="text-zinc-400 mb-8 max-w-sm mx-auto">Vous avez les chiffres sous les yeux. La seule question qui reste : préférez-vous payer pour rien ou payer pour vous ?</p>
+                   <h3 className="text-3xl font-black text-white mb-4">LA SEULE VRAIE QUESTION</h3>
+                   <p className="text-zinc-400 mb-8 max-w-sm mx-auto leading-relaxed">
+                     Vous avez les chiffres. Vous avez les garanties. Vous avez la preuve mathématique. 
+                     <span className="text-white font-bold"> Préférez-vous enrichir votre fournisseur ou vous enrichir vous-même ?</span>
+                   </p>
                    
-                   <button className="bg-white text-black font-black text-lg px-8 py-4 rounded-xl hover:scale-105 hover:shadow-[0_0_30px_rgba(255,255,255,0.3)] transition-all flex items-center gap-2 mx-auto">
-                       BLOQUER CE TARIF MAINTENANT <CheckCircle2 className="w-5 h-5" />
-                   </button>
+                   <div className="space-y-3">
+                     <button className="w-full bg-white text-black font-black text-lg px-8 py-5 rounded-xl hover:scale-105 hover:shadow-[0_0_40px_rgba(255,255,255,0.4)] transition-all flex items-center justify-center gap-3 group/btn">
+                         <CheckCircle2 className="w-6 h-6 group-hover/btn:rotate-12 transition-transform" />
+                         JE SÉCURISE MON TARIF MAINTENANT
+                         <ArrowRight className="w-5 h-5 group-hover/btn:translate-x-1 transition-transform" />
+                     </button>
+                     
+                     <p className="text-[10px] text-zinc-600 italic">
+                       ⏰ Chaque jour d'attente = {formatMoney(calculationResult.lossIfWait1Year / 365)} perdus
+                     </p>
+                   </div>
                </div>
            </div>
         </div>
