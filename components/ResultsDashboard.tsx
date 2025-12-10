@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { SimulationResult, YearlyDetail } from '../types';
-import { AreaChart, Area, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { AreaChart, Area, BarChart, Bar, LineChart, Line, PieChart, Pie, Label, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { Wallet, Zap, TrendingUp, TrendingDown, Sun, ShieldAlert, Flame, Lock, Timer, PiggyBank, Landmark, Table2, Info, Calendar, Scale, Crown, Ban, Wrench, Truck, CheckCircle2, Eye, CalendarDays, Coins, ArrowRight, HelpCircle, AlertTriangle, Edit3, Settings, DollarSign, TrendingDown as TrendDown, Clock, Target, Award, Users, Home, CreditCard, Banknote } from 'lucide-react';
 
 interface ResultsDashboardProps {
@@ -26,8 +26,7 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ data, onRese
   const [showInactionInfo, setShowInactionInfo] = useState(false);
   const [tableView, setTableView] = useState<'yearly' | 'monthly'>('yearly');
   const [showParamsEditor, setShowParamsEditor] = useState(false);
-  const [showCashComparison, setShowCashComparison] = useState(true);
-  const [premiumWarranty, setPremiumWarranty] = useState(true); // Garanties premium activées par défaut
+  const [premiumWarranty, setPremiumWarranty] = useState(true); // Performance par défaut (TVA 20%)
 
   // ==================== MOTEUR DE CALCUL FINANCIER ====================
   const calculationResult = useMemo(() => {
@@ -111,7 +110,7 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ data, onRese
     const bankEquivalentCapital = averageYearlyGain / 0.03;
 
     // ===== CALCUL SCÉNARIO CASH (Sans Crédit) =====
-    let cumulativeSavingsCash = -localInstallCost; // On paye cash au départ
+    let cumulativeSavingsCash = -localInstallCost;
     const detailsCash: YearlyDetail[] = [];
     
     for (let i = 0; i < 30; i++) {
@@ -121,7 +120,6 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ data, onRese
       const savingsInEuros = selfConsumedKwh * currentElectricityPrice;
       const residuaryBill = Math.max(0, billWithoutSolar - savingsInEuros);
       
-      // CASH : Pas de crédit, juste la facture résiduelle
       const yearlySavingCash = billWithoutSolar - residuaryBill;
       cumulativeSavingsCash += yearlySavingCash;
 
@@ -170,14 +168,12 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ data, onRese
       savingsRatePercent,
       baseConsumptionKwh,
       installCost: localInstallCost,
-      // CASH
       detailsCash,
       slicedDetailsCash,
       totalSavingsProjectedCash,
       breakEvenPointCash,
       averageYearlyGainCash,
       roiPercentageCash,
-      // WAIT
       lossIfWait1Year,
       savingsLostIfWait1Year
     };
@@ -483,7 +479,126 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ data, onRese
              </div>
         </div>
 
-        {/* ==================== COMPARAISON FINANCEMENT VS CASH ==================== */}
+        {/* ==================== GRAPHIQUE : RÉPARTITION ÉNERGIE ==================== */}
+        <div className="bg-zinc-900/50 border border-white/5 rounded-[32px] p-8 backdrop-blur-sm">
+          <div className="flex items-center gap-3 mb-6">
+            <Zap className="w-6 h-6 text-yellow-500" />
+            <h2 className="text-2xl font-black text-white">RÉPARTITION ÉNERGIE</h2>
+          </div>
+          
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
+            {/* GRAPHIQUE CIRCULAIRE */}
+            <div className="relative">
+              <ResponsiveContainer width="100%" height={300}>
+                <PieChart>
+                  <defs>
+                    <linearGradient id="autoconsoGradient" x1="0" y1="0" x2="1" y2="1">
+                      <stop offset="0%" stopColor="#f59e0b" />
+                      <stop offset="100%" stopColor="#d97706" />
+                    </linearGradient>
+                    <linearGradient id="venteGradient" x1="0" y1="0" x2="1" y2="1">
+                      <stop offset="0%" stopColor="#a855f7" />
+                      <stop offset="100%" stopColor="#7e22ce" />
+                    </linearGradient>
+                  </defs>
+                  <Pie
+                    data={[
+                      { 
+                        name: 'Autoconso.', 
+                        value: yearlyProduction * (selfConsumptionRate / 100),
+                        fill: 'url(#autoconsoGradient)'
+                      },
+                      { 
+                        name: 'Vente', 
+                        value: yearlyProduction * (1 - selfConsumptionRate / 100),
+                        fill: 'url(#venteGradient)'
+                      }
+                    ]}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={80}
+                    outerRadius={120}
+                    paddingAngle={5}
+                    dataKey="value"
+                  >
+                    <Label 
+                      value="TOTAL" 
+                      position="center" 
+                      dy={-10}
+                      style={{ fontSize: '12px', fill: '#71717a', fontWeight: 'bold' }}
+                    />
+                    <Label 
+                      value={`${formatKwh(yearlyProduction)}`} 
+                      position="center" 
+                      style={{ fontSize: '32px', fontWeight: 'bold', fill: '#fff' }}
+                    />
+                    <Label 
+                      value="kWh/an" 
+                      position="center" 
+                      dy={25}
+                      style={{ fontSize: '14px', fill: '#71717a' }}
+                    />
+                  </Pie>
+                  <Tooltip 
+                    formatter={(value: number) => `${formatKwh(value)} kWh`}
+                    contentStyle={{ 
+                      backgroundColor: '#18181b', 
+                      border: '1px solid #3f3f46',
+                      borderRadius: '8px',
+                      fontSize: '13px'
+                    }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* LÉGENDE ET EXPLICATIONS */}
+            <div className="space-y-6">
+              {/* Autoconsommation */}
+              <div className="bg-gradient-to-r from-orange-900/20 to-black border border-orange-500/30 rounded-2xl p-5">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-4 h-4 rounded-full bg-gradient-to-br from-orange-500 to-orange-600"></div>
+                  <h3 className="text-lg font-bold text-white">Autoconso.</h3>
+                </div>
+                <div className="text-3xl font-black text-orange-400 mb-2">
+                  {formatKwh(yearlyProduction * (selfConsumptionRate / 100))} kWh
+                </div>
+                <p className="text-sm text-zinc-400 leading-relaxed">
+                  💡 L'électricité que vous <span className="text-white font-bold">consommez directement</span> depuis vos panneaux. 
+                  <span className="text-orange-400 font-bold"> Vous ne payez PAS ces kWh au fournisseur.</span>
+                </p>
+              </div>
+
+              {/* Vente */}
+              <div className="bg-gradient-to-r from-purple-900/20 to-black border border-purple-500/30 rounded-2xl p-5">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-4 h-4 rounded-full bg-gradient-to-br from-purple-500 to-purple-600"></div>
+                  <h3 className="text-lg font-bold text-white">Vente (Surplus)</h3>
+                </div>
+                <div className="text-3xl font-black text-purple-400 mb-2">
+                  {formatKwh(yearlyProduction * (1 - selfConsumptionRate / 100))} kWh
+                </div>
+                <p className="text-sm text-zinc-400 leading-relaxed">
+                  ⚡ Le surplus vendu au réseau. EDF vous le rachète à un tarif garanti pendant 20 ans 
+                  (environ <span className="text-white font-bold">0.10€/kWh</span>).
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* RÉSUMÉ BAS */}
+          <div className="mt-8 bg-blue-500/10 border border-blue-500/20 rounded-xl p-4">
+            <p className="text-sm text-blue-300 flex items-start gap-2">
+              <Info className="w-5 h-5 shrink-0 mt-0.5" />
+              <span>
+                <span className="font-bold text-white">Votre stratégie :</span> Maximiser l'autoconsommation 
+                ({selfConsumptionRate}%) pour économiser, et vendre le reste pour générer un complément de revenu.
+              </span>
+            </p>
+          </div>
+        </div>
+
+        {/* ==================== COMPARAISON FINANCEMENT VS CASH (TOUJOURS VISIBLE) ==================== */}
         <div className="bg-zinc-900/30 border border-white/5 rounded-[32px] p-8">
           <div className="flex items-center justify-between mb-8">
             <div>
@@ -492,122 +607,114 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ data, onRese
               </h2>
               <p className="text-zinc-500 text-sm">Quel mode de paiement maximise votre retour sur investissement ?</p>
             </div>
-            <button 
-              onClick={() => setShowCashComparison(!showCashComparison)}
-              className="text-xs font-bold text-zinc-500 hover:text-white uppercase tracking-widest transition-colors flex items-center gap-2 bg-zinc-800/50 px-4 py-2 rounded-xl border border-white/10"
-            >
-              {showCashComparison ? <Eye className="w-4 h-4" /> : <Eye className="w-4 h-4" />} 
-              {showCashComparison ? 'Masquer' : 'Afficher'}
-            </button>
           </div>
 
-          {showCashComparison && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              
-              {/* OPTION 1 : FINANCEMENT */}
-              <div className="bg-gradient-to-br from-blue-900/30 to-black border-2 border-blue-500/40 rounded-[24px] p-6 relative overflow-hidden">
-                <div className="absolute top-0 right-0 p-4 opacity-10">
-                  <CreditCard className="w-32 h-32 text-blue-500" />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* PARTIE 2 - SUITE DU FICHIER */}
+            
+            {/* OPTION 1 : FINANCEMENT */}
+            <div className="bg-gradient-to-br from-blue-900/30 to-black border-2 border-blue-500/40 rounded-[24px] p-6 relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-4 opacity-10">
+                <CreditCard className="w-32 h-32 text-blue-500" />
+              </div>
+              <div className="relative z-10">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="p-3 bg-blue-500/20 rounded-xl">
+                    <CreditCard className="w-6 h-6 text-blue-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-black text-white">AVEC FINANCEMENT</h3>
+                    <p className="text-blue-300 text-sm">Étalement de la charge</p>
+                  </div>
                 </div>
-                <div className="relative z-10">
-                  <div className="flex items-center gap-3 mb-6">
-                    <div className="p-3 bg-blue-500/20 rounded-xl">
-                      <CreditCard className="w-6 h-6 text-blue-400" />
-                    </div>
-                    <div>
-                      <h3 className="text-xl font-black text-white">AVEC FINANCEMENT</h3>
-                      <p className="text-blue-300 text-sm">Étalement de la charge</p>
-                    </div>
-                  </div>
 
-                  <div className="space-y-4 mb-6">
-                    <div className="flex justify-between items-center p-3 bg-black/40 rounded-xl">
-                      <span className="text-xs text-zinc-400 uppercase font-bold">Gain Total ({projectionYears} ans)</span>
-                      <span className="text-lg font-black text-white">{formatEUR(calculationResult.totalSavingsProjected)}</span>
-                    </div>
-                    <div className="flex justify-between items-center p-3 bg-black/40 rounded-xl">
-                      <span className="text-xs text-zinc-400 uppercase font-bold">Point Mort</span>
-                      <span className="text-lg font-black text-blue-400">{calculationResult.breakEvenPoint} ans</span>
-                    </div>
-                    <div className="flex justify-between items-center p-3 bg-black/40 rounded-xl">
-                      <span className="text-xs text-zinc-400 uppercase font-bold">ROI Annuel</span>
-                      <span className="text-lg font-black text-emerald-400">+{calculationResult.roiPercentage.toFixed(1)}%</span>
-                    </div>
+                <div className="space-y-4 mb-6">
+                  <div className="flex justify-between items-center p-3 bg-black/40 rounded-xl">
+                    <span className="text-xs text-zinc-400 uppercase font-bold">Gain Total ({projectionYears} ans)</span>
+                    <span className="text-lg font-black text-white">{formatEUR(calculationResult.totalSavingsProjected)}</span>
                   </div>
+                  <div className="flex justify-between items-center p-3 bg-black/40 rounded-xl">
+                    <span className="text-xs text-zinc-400 uppercase font-bold">Point Mort</span>
+                    <span className="text-lg font-black text-blue-400">{calculationResult.breakEvenPoint} ans</span>
+                  </div>
+                  <div className="flex justify-between items-center p-3 bg-black/40 rounded-xl">
+                    <span className="text-xs text-zinc-400 uppercase font-bold">ROI Annuel</span>
+                    <span className="text-lg font-black text-emerald-400">+{calculationResult.roiPercentage.toFixed(1)}%</span>
+                  </div>
+                </div>
 
-                  <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4">
-                    <h4 className="text-xs font-bold text-blue-400 uppercase mb-2">✅ Avantages</h4>
-                    <ul className="space-y-2 text-xs text-zinc-300">
-                      <li className="flex items-start gap-2">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                        <span>Aucun cash bloqué - Vous gardez votre épargne liquide</span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                        <span>Effort mensuel maîtrisé ({formatMoney(Math.abs(calculationResult.monthlyEffortYear1))})</span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                        <span>Vous profitez immédiatement des économies</span>
-                      </li>
-                    </ul>
-                  </div>
+                <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4">
+                  <h4 className="text-xs font-bold text-blue-400 uppercase mb-2">✅ Avantages</h4>
+                  <ul className="space-y-2 text-xs text-zinc-300">
+                    <li className="flex items-start gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                      <span>Aucun cash bloqué - Vous gardez votre épargne liquide</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                      <span>Effort mensuel maîtrisé ({formatMoney(Math.abs(calculationResult.monthlyEffortYear1))})</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                      <span>Vous profitez immédiatement des économies</span>
+                    </li>
+                  </ul>
                 </div>
               </div>
-
-              {/* OPTION 2 : CASH */}
-              <div className="bg-gradient-to-br from-emerald-900/30 to-black border-2 border-emerald-500/40 rounded-[24px] p-6 relative overflow-hidden">
-                <div className="absolute top-0 right-0 p-4 opacity-10">
-                  <Banknote className="w-32 h-32 text-emerald-500" />
-                </div>
-                <div className="relative z-10">
-                  <div className="flex items-center gap-3 mb-6">
-                    <div className="p-3 bg-emerald-500/20 rounded-xl">
-                      <Banknote className="w-6 h-6 text-emerald-400" />
-                    </div>
-                    <div>
-                      <h3 className="text-xl font-black text-white">PAIEMENT CASH</h3>
-                      <p className="text-emerald-300 text-sm">Rentabilité maximale</p>
-                    </div>
-                  </div>
-
-                  <div className="space-y-4 mb-6">
-                    <div className="flex justify-between items-center p-3 bg-black/40 rounded-xl">
-                      <span className="text-xs text-zinc-400 uppercase font-bold">Gain Total ({projectionYears} ans)</span>
-                      <span className="text-lg font-black text-emerald-400">{formatEUR(calculationResult.totalSavingsProjectedCash)}</span>
-                    </div>
-                    <div className="flex justify-between items-center p-3 bg-black/40 rounded-xl">
-                      <span className="text-xs text-zinc-400 uppercase font-bold">Point Mort</span>
-                      <span className="text-lg font-black text-emerald-400">{calculationResult.breakEvenPointCash} ans</span>
-                    </div>
-                    <div className="flex justify-between items-center p-3 bg-black/40 rounded-xl">
-                      <span className="text-xs text-zinc-400 uppercase font-bold">ROI Annuel</span>
-                      <span className="text-lg font-black text-emerald-400">+{calculationResult.roiPercentageCash.toFixed(1)}%</span>
-                    </div>
-                  </div>
-
-                  <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-4">
-                    <h4 className="text-xs font-bold text-emerald-400 uppercase mb-2">✅ Avantages</h4>
-                    <ul className="space-y-2 text-xs text-zinc-300">
-                      <li className="flex items-start gap-2">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                        <span>ROI supérieur (+{(calculationResult.roiPercentageCash - calculationResult.roiPercentage).toFixed(1)}% vs crédit)</span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                        <span>Point mort plus rapide ({calculationResult.breakEvenPointCash} ans vs {calculationResult.breakEvenPoint})</span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                        <span>Pas d'intérêts bancaires - 100% des économies pour vous</span>
-                      </li>
-                    </ul>
-                  </div>
-                </div>
-              </div>
-
             </div>
-          )}
+
+            {/* OPTION 2 : CASH */}
+            <div className="bg-gradient-to-br from-emerald-900/30 to-black border-2 border-emerald-500/40 rounded-[24px] p-6 relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-4 opacity-10">
+                <Banknote className="w-32 h-32 text-emerald-500" />
+              </div>
+              <div className="relative z-10">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="p-3 bg-emerald-500/20 rounded-xl">
+                    <Banknote className="w-6 h-6 text-emerald-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-black text-white">PAIEMENT CASH</h3>
+                    <p className="text-emerald-300 text-sm">Rentabilité maximale</p>
+                  </div>
+                </div>
+
+                <div className="space-y-4 mb-6">
+                  <div className="flex justify-between items-center p-3 bg-black/40 rounded-xl">
+                    <span className="text-xs text-zinc-400 uppercase font-bold">Gain Total ({projectionYears} ans)</span>
+                    <span className="text-lg font-black text-emerald-400">{formatEUR(calculationResult.totalSavingsProjectedCash)}</span>
+                  </div>
+                  <div className="flex justify-between items-center p-3 bg-black/40 rounded-xl">
+                    <span className="text-xs text-zinc-400 uppercase font-bold">Point Mort</span>
+                    <span className="text-lg font-black text-emerald-400">{calculationResult.breakEvenPointCash} ans</span>
+                  </div>
+                  <div className="flex justify-between items-center p-3 bg-black/40 rounded-xl">
+                    <span className="text-xs text-zinc-400 uppercase font-bold">ROI Annuel</span>
+                    <span className="text-lg font-black text-emerald-400">+{calculationResult.roiPercentageCash.toFixed(1)}%</span>
+                  </div>
+                </div>
+
+                <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-4">
+                  <h4 className="text-xs font-bold text-emerald-400 uppercase mb-2">✅ Avantages</h4>
+                  <ul className="space-y-2 text-xs text-zinc-300">
+                    <li className="flex items-start gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                      <span>ROI supérieur (+{(calculationResult.roiPercentageCash - calculationResult.roiPercentage).toFixed(1)}% vs crédit)</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                      <span>Point mort plus rapide ({calculationResult.breakEvenPointCash} ans vs {calculationResult.breakEvenPoint})</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                      <span>Pas d'intérêts bancaires - 100% des économies pour vous</span>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+          </div>
 
           {/* VERDICT */}
           <div className="mt-6 bg-gradient-to-r from-purple-900/20 to-pink-900/20 border border-purple-500/30 rounded-2xl p-6">
@@ -616,7 +723,7 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ data, onRese
               <h4 className="text-lg font-black text-white">💡 LE VERDICT DU CONSEILLER</h4>
             </div>
             <p className="text-zinc-300 text-sm leading-relaxed">
-              <span className="text-emerald-400 font-bold">Cash optimal</span> si vous avez l'épargne disponible (+{(calculationResult.totalSavingsProjectedCash - calculationResult.totalSavingsProjected).toFixed(0)}€ de gain sur {projectionYears} ans). 
+              <span className="text-emerald-400 font-bold">Cash optimal</span> si vous avez l'épargne disponible (+{formatEUR(calculationResult.totalSavingsProjectedCash - calculationResult.totalSavingsProjected)} de gain sur {projectionYears} ans). 
               <span className="text-blue-400 font-bold"> Financement intelligent</span> si vous préférez garder votre trésorerie liquide pour d'autres projets. 
               <span className="text-white font-bold"> Dans les deux cas, vous gagnez.</span> La vraie perte ? C'est de ne rien faire.
             </p>
@@ -743,7 +850,7 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ data, onRese
           </div>
         </div>
 
-        {/* --- HERO SECTION --- */}
+        {/* --- HERO SECTION AVEC POINT MORT EXPLIQUÉ --- */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           
           <div className="lg:col-span-8 relative group flex">
@@ -770,10 +877,33 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ data, onRese
                        {formatEUR(calculationResult.totalSavingsProjected)}
                      </span>
                    </div>
-                   <p className="text-zinc-400 mt-4 max-w-lg leading-relaxed border-l-2 border-blue-500 pl-4">
-                     C'est votre nouvelle rente énergétique. Défiscalisée, garantie 25 ans, et transmissible à vos enfants. 
-                     <span className="text-emerald-400 font-bold"> Pendant que d'autres louent leur électricité, vous êtes propriétaire.</span>
-                   </p>
+                   
+                   {/* EXPLICATION DU GAIN */}
+                   <div className="mt-6 bg-blue-500/10 border border-blue-500/20 rounded-xl p-4">
+                     <div className="flex items-start gap-2">
+                       <Info className="w-5 h-5 text-blue-400 shrink-0 mt-0.5" />
+                       <div className="text-sm text-blue-300 space-y-2">
+                         <p className="font-bold text-white">💡 Comment est calculé ce gain ?</p>
+                         <p className="text-xs">
+                           C'est la différence entre <span className="text-red-400 font-bold">ce que vous auriez payé au fournisseur</span> 
+                           (sans panneaux) et <span className="text-blue-400 font-bold">ce que vous payez réellement</span> 
+                           (crédit + reste de facture).
+                         </p>
+                         <div className="bg-black/40 rounded-lg p-3 space-y-1 text-xs font-mono">
+                           <div className="text-zinc-500">FORMULE :</div>
+                           <div className="text-red-400">Facture Sans Panneaux (inflation comprise)</div>
+                           <div className="text-zinc-600">MOINS</div>
+                           <div className="text-blue-400">(Mensualité Crédit + Reste Facture Réduite)</div>
+                           <div className="text-zinc-600">ÉGALE</div>
+                           <div className="text-emerald-400 font-bold">Votre Gain Net</div>
+                         </div>
+                         <p className="text-[11px] text-zinc-500 italic">
+                           ⚠️ Les premières années, le gain peut être négatif (effort d'investissement). 
+                           Après le crédit, il devient massif et permanent.
+                         </p>
+                       </div>
+                     </div>
+                   </div>
                 </div>
 
                 <div className="mt-12 grid grid-cols-2 md:grid-cols-4 gap-4 border-t border-white/5 pt-8">
@@ -788,8 +918,30 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ data, onRese
                      <div className="text-[10px] text-zinc-500">Pouvoir d'achat</div>
                    </div>
                    <div>
-                     <div className="text-zinc-500 text-[10px] uppercase font-bold tracking-wider mb-1">Point Mort</div>
-                     <div className="text-2xl font-bold text-white">{calculationResult.breakEvenPoint} ans</div>
+                     {/* POINT MORT AVEC TOOLTIP */}
+                     <div className="text-zinc-500 text-[10px] uppercase font-bold tracking-wider mb-1 flex items-center gap-1">
+                       Point Mort 
+                       <div className="group relative">
+                         <HelpCircle className="w-3 h-3 cursor-help text-zinc-600 hover:text-white" />
+                         <div className="absolute left-0 bottom-full mb-2 w-64 bg-zinc-900 border border-white/20 text-xs p-3 rounded-xl text-zinc-300 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-2xl">
+                           <div className="font-bold text-white mb-2 flex items-center gap-1">
+                             <Target className="w-4 h-4 text-emerald-400" />
+                             C'est quoi le Point Mort ?
+                           </div>
+                           <p className="leading-relaxed">
+                             C'est l'année où vous <span className="text-emerald-400 font-bold">commencez à gagner de l'argent</span>. 
+                           </p>
+                           <div className="mt-2 pt-2 border-t border-white/10">
+                             <div className="text-[10px] text-zinc-500 space-y-1">
+                               <div>Avant {calculationResult.breakEvenPoint} ans = Investissement</div>
+                               <div className="text-emerald-400">Après {calculationResult.breakEvenPoint} ans = Profit pur</div>
+                             </div>
+                           </div>
+                         </div>
+                       </div>
+                     </div>
+                     <div className="text-2xl font-bold text-white mb-1">{calculationResult.breakEvenPoint} ans</div>
+                     <div className="text-[9px] text-zinc-600">Vous récupérez votre mise</div>
                    </div>
                    <div>
                      <div className="text-zinc-500 text-[10px] uppercase font-bold tracking-wider mb-1">Investissement</div>
@@ -1015,69 +1167,107 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ data, onRese
            </div>
         </div>
 
-        {/* ==================== SECTION GARANTIES PREMIUM AVEC CHECKBOX ==================== */}
+        {/* ==================== GARANTIES PERFORMANCE (TVA 20%) VS ESSENTIELLE (TVA 5.5%) ==================== */}
         <div className="bg-zinc-900/30 border border-white/5 rounded-[24px] overflow-hidden">
-            {/* HEADER AVEC CHECKBOX */}
+          {/* PARTIE 3 - FIN DU FICHIER */}
+            
+            {/* HEADER GARANTIES AVEC CHECKBOX */}
             <div className="p-6 border-b border-white/5 bg-gradient-to-r from-amber-900/20 to-black">
               <div className="flex items-center justify-between mb-2">
                 <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                    <ShieldAlert className="text-amber-500 w-6 h-6" /> SÉCURITÉ MAXIMALE & GARANTIES
+                    <ShieldAlert className="text-amber-500 w-6 h-6" /> GARANTIES & SÉCURITÉ
                 </h3>
                 
-                {/* CHECKBOX PREMIUM */}
-                <label className="flex items-center gap-3 cursor-pointer group">
-                  <span className="text-sm font-bold text-zinc-400 group-hover:text-white transition-colors">
-                    Garanties Premium
-                  </span>
-                  <div className="relative">
-                    <input
-                      type="checkbox"
-                      checked={premiumWarranty}
-                      onChange={(e) => setPremiumWarranty(e.target.checked)}
-                      className="sr-only peer"
-                    />
-                    <div className="w-14 h-7 bg-zinc-700 rounded-full peer-checked:bg-emerald-600 transition-colors"></div>
-                    <div className="absolute left-1 top-1 w-5 h-5 bg-white rounded-full transition-transform peer-checked:translate-x-7 shadow-lg"></div>
-                  </div>
-                </label>
+                {/* CHECKBOX PERFORMANCE VS ESSENTIELLE */}
+                <div className="flex items-center gap-4">
+                  <label className="flex items-center gap-3 cursor-pointer group">
+                    <span className={`text-sm font-bold transition-colors ${!premiumWarranty ? 'text-white' : 'text-zinc-600'}`}>
+                      Essentielle (TVA 5.5%)
+                    </span>
+                    <div className="relative">
+                      <input
+                        type="checkbox"
+                        checked={premiumWarranty}
+                        onChange={(e) => setPremiumWarranty(e.target.checked)}
+                        className="sr-only peer"
+                      />
+                      <div className="w-16 h-8 bg-zinc-700 rounded-full peer-checked:bg-blue-600 transition-colors"></div>
+                      <div className="absolute left-1 top-1 w-6 h-6 bg-white rounded-full transition-transform peer-checked:translate-x-8 shadow-lg"></div>
+                    </div>
+                    <span className={`text-sm font-bold transition-colors ${premiumWarranty ? 'text-white' : 'text-zinc-600'}`}>
+                      Performance (TVA 20%)
+                    </span>
+                  </label>
+                </div>
               </div>
-              <p className="text-zinc-500 text-sm">
-                💡 {premiumWarranty ? "Votre installation est protégée comme un coffre-fort. Aucun risque technique ou financier." : "Garantie standard de performance (-0.4%/an) avec possibilité d'upgrade."}
-              </p>
             </div>
 
-            {/* CONTENU SELON CHECKBOX */}
+            {/* CONTENU CONDITIONNEL */}
             <div className="p-6">
               {premiumWarranty ? (
                 <>
-                  {/* GARANTIES PREMIUM ACTIVÉES */}
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                      {[
-                          { title: "Panneaux", val: "À VIE", sub: "Garantie Performance", detail: "Production garantie", icon: Sun, desc: "Si vos panneaux produisent moins que prévu (-0.4%/an), EDF paie la différence" },
-                          { title: "Toutes Pièces", val: "À VIE", sub: "Remplacement Gratuit", detail: "Onduleurs, câbles, fixations", icon: Zap, desc: "Toute panne matérielle = remplacement à neuf sans frais" },
-                          { title: "Main d'Oeuvre", val: "À VIE", sub: "Intervention Incluse", detail: "Aucun frais cachés", icon: Wrench, desc: "Nos techniciens interviennent gratuitement, peu importe le problème" },
-                          { title: "Déplacement", val: "ILLIMITÉ", sub: "Partout en France", detail: "Service Premium 7j/7", icon: Truck, desc: "Aucun frais de déplacement, où que vous soyez" },
-                      ].map((item, i) => (
-                          <div key={i} className="bg-gradient-to-br from-amber-500/10 to-yellow-600/5 border border-amber-500/20 p-4 rounded-xl flex flex-col items-center text-center group hover:bg-amber-500/15 transition-all relative">
-                              <div className="w-12 h-12 bg-amber-500/20 rounded-full flex items-center justify-center mb-2 text-amber-500 group-hover:scale-110 transition-transform">
-                                  <item.icon className="w-6 h-6" />
-                              </div>
-                              <div className="text-2xl font-black text-amber-400 mb-0 leading-none">{item.val}</div>
-                              <div className="text-white font-bold text-[10px] uppercase tracking-wide mt-1">{item.title}</div>
-                              <div className="mt-2 py-0.5 px-2 bg-amber-500/10 rounded-full text-[9px] text-amber-300 font-bold border border-amber-500/20">
-                                  {item.detail}
-                              </div>
-                              
-                              {/* TOOLTIP AU HOVER */}
-                              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 bg-zinc-900 border border-amber-500/30 text-xs p-3 rounded-lg text-zinc-300 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-xl">
-                                  <div className="text-amber-400 font-bold mb-1">{item.sub}</div>
-                                  {item.desc}
-                              </div>
-                          </div>
-                      ))}
+                  {/* GARANTIES PERFORMANCE (TVA 20%) */}
+                  <div className="bg-blue-500/5 border border-blue-500/20 rounded-xl p-4 mb-6">
+                    <div className="text-xs font-bold text-blue-400 uppercase tracking-wider mb-2">
+                      ⚡ OFFRE PERFORMANCE - TVA 20%
+                    </div>
+                    <p className="text-sm text-zinc-300">
+                      Garantie maximale avec autopilote IA, afficheur temps réel et production garantie 30 ans.
+                    </p>
                   </div>
 
-                  {/* AUTOPILOTE EDF + AFFICHEUR */}
+                  {/* 4 CARTES GARANTIES PERFORMANCE */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                    {[
+                      { 
+                        title: "Panneaux", 
+                        val: "30 ANS", 
+                        detail: "Performance garantie",
+                        desc: "Production garantie -0.4%/an max. Si moins, on paie la différence.",
+                        icon: Sun 
+                      },
+                      { 
+                        title: "Onduleurs", 
+                        val: "25 ANS", 
+                        detail: "Pièces + M.O. + Déplacement",
+                        desc: "Remplacement gratuit si panne, main d'œuvre et déplacement inclus.",
+                        icon: Zap 
+                      },
+                      { 
+                        title: "Structure", 
+                        val: "10 ANS", 
+                        detail: "Matériel + M.O. + Déplacement",
+                        desc: "Fixations, rails, étanchéité couverts avec intervention gratuite.",
+                        icon: Wrench 
+                      },
+                      { 
+                        title: "Panneaux", 
+                        val: "25 ANS", 
+                        detail: "Matériel uniquement",
+                        desc: "Défaut de fabrication couvert (hors casse accidentelle).",
+                        icon: Sun 
+                      },
+                    ].map((item, i) => (
+                      <div key={i} className="bg-gradient-to-br from-blue-500/10 to-cyan-500/5 border border-blue-500/20 p-4 rounded-xl group hover:bg-blue-500/15 transition-all relative">
+                        <div className="w-12 h-12 bg-blue-500/20 rounded-full flex items-center justify-center mb-3 text-blue-400 group-hover:scale-110 transition-transform">
+                          <item.icon className="w-6 h-6" />
+                        </div>
+                        <div className="text-2xl font-black text-blue-400 mb-1 leading-none">{item.val}</div>
+                        <div className="text-white font-bold text-[10px] uppercase tracking-wide mb-1">{item.title}</div>
+                        <div className="text-[9px] text-blue-300 bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20 inline-block">
+                          {item.detail}
+                        </div>
+                        
+                        {/* TOOLTIP */}
+                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 bg-zinc-900 border border-blue-500/30 text-xs p-3 rounded-lg text-zinc-300 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-xl">
+                          <div className="text-blue-400 font-bold mb-1">{item.title} - {item.val}</div>
+                          {item.desc}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* AUTOPILOTE EDF */}
                   <div className="bg-gradient-to-r from-blue-900/20 to-purple-900/20 border border-blue-500/30 rounded-2xl p-6 mb-6">
                     <div className="flex items-start gap-4">
                       <div className="p-3 bg-blue-500/20 rounded-xl shrink-0">
@@ -1160,67 +1350,129 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ data, onRese
                     </div>
                   </div>
 
-                  {/* RÉSUMÉ GARANTIES PREMIUM */}
-                  <div className="mt-6 bg-amber-500/5 border border-amber-500/20 rounded-xl p-4 text-center">
-                    <p className="text-sm text-amber-300 font-bold">
+                  {/* RÉSUMÉ PERFORMANCE */}
+                  <div className="mt-6 bg-blue-500/5 border border-blue-500/20 rounded-xl p-4 text-center">
+                    <p className="text-sm text-blue-300 font-bold">
                       🛡️ RÉSULTAT : Vous dormez tranquille. Nous surveillons tout 24/7. Si problème, on intervient gratuitement. Si sous-production, on paie la différence.
                     </p>
                   </div>
                 </>
               ) : (
                 <>
-                  {/* GARANTIE STANDARD */}
-                  <div className="bg-zinc-800/50 border border-zinc-700 rounded-2xl p-6 text-center">
-                    <div className="w-16 h-16 bg-zinc-700 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <ShieldAlert className="w-8 h-8 text-zinc-500" />
+                  {/* GARANTIES ESSENTIELLE (TVA 5.5%) */}
+                  <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-4 mb-6">
+                    <div className="text-xs font-bold text-emerald-400 uppercase tracking-wider mb-2 flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4" />
+                      OFFRE ESSENTIELLE - TVA RÉDUITE 5.5%
                     </div>
-                    <h4 className="text-lg font-bold text-white mb-2">Garantie Standard de Performance</h4>
-                    <p className="text-zinc-400 text-sm mb-4 max-w-lg mx-auto">
-                      Avec la garantie standard, vos panneaux sont garantis avec une perte maximale de <span className="text-white font-bold">-0.4% par an</span>. 
-                      Si la production tombe en dessous de ce seuil, vous pouvez faire une réclamation.
+                    <p className="text-sm text-zinc-300 mb-2">
+                      Panneaux fabriqués en France avec garanties standards de l'industrie.
                     </p>
-                    
-                    <div className="bg-zinc-900/50 border border-zinc-700 rounded-xl p-4 mb-4 max-w-md mx-auto">
-                      <div className="text-xs text-zinc-500 uppercase font-bold mb-2">⚠️ Limitations</div>
-                      <ul className="text-xs text-zinc-400 space-y-2 text-left">
-                        <li className="flex items-start gap-2">
-                          <span className="text-zinc-600">•</span>
-                          <span>Pas de surveillance automatique à distance</span>
-                        </li>
-                        <li className="flex items-start gap-2">
-                          <span className="text-zinc-600">•</span>
-                          <span>Frais de déplacement possibles selon contrat</span>
-                        </li>
-                        <li className="flex items-start gap-2">
-                          <span className="text-zinc-600">•</span>
-                          <span>Main d'œuvre selon conditions du fabricant</span>
-                        </li>
-                        <li className="flex items-start gap-2">
-                          <span className="text-zinc-600">•</span>
-                          <span>Pas d'afficheur connecté en temps réel</span>
-                        </li>
-                      </ul>
+                    <div className="text-xs text-emerald-400 font-bold">
+                      💰 Économisez {((installCost * 0.20) - (installCost * 0.055)).toFixed(0)}€ de TVA !
                     </div>
+                  </div>
 
+                  {/* 4 CARTES GARANTIES ESSENTIELLE */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                    {[
+                      { 
+                        title: "Panneaux", 
+                        val: "25 ANS", 
+                        detail: "Performance",
+                        desc: "Production garantie -0.4%/an. Fabrication française.",
+                        icon: Sun,
+                        highlight: true
+                      },
+                      { 
+                        title: "Onduleurs", 
+                        val: "25 ANS", 
+                        detail: "Pièces + M.O. + Déplacement",
+                        desc: "Couverture complète identique à Performance.",
+                        icon: Zap 
+                      },
+                      { 
+                        title: "Structure", 
+                        val: "10 ANS", 
+                        detail: "Matériel + M.O. + Déplacement",
+                        desc: "Identique à Performance.",
+                        icon: Wrench 
+                      },
+                      { 
+                        title: "Panneaux", 
+                        val: "25 ANS", 
+                        detail: "Matériel",
+                        desc: "Défauts de fabrication couverts.",
+                        icon: Sun 
+                      },
+                    ].map((item, i) => (
+                      <div key={i} className={`bg-gradient-to-br ${item.highlight ? 'from-emerald-500/15 to-green-500/10 border-emerald-500/30' : 'from-emerald-500/10 to-green-500/5 border-emerald-500/20'} border p-4 rounded-xl group hover:bg-emerald-500/15 transition-all relative`}>
+                        <div className="w-12 h-12 bg-emerald-500/20 rounded-full flex items-center justify-center mb-3 text-emerald-400 group-hover:scale-110 transition-transform">
+                          <item.icon className="w-6 h-6" />
+                        </div>
+                        {item.highlight && (
+                          <div className="absolute top-2 right-2 text-[9px] bg-emerald-500 text-white px-2 py-0.5 rounded font-bold">
+                            🇫🇷 FRANÇAIS
+                          </div>
+                        )}
+                        <div className="text-2xl font-black text-emerald-400 mb-1 leading-none">{item.val}</div>
+                        <div className="text-white font-bold text-[10px] uppercase tracking-wide mb-1">{item.title}</div>
+                        <div className="text-[9px] text-emerald-300 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20 inline-block">
+                          {item.detail}
+                        </div>
+                        
+                        {/* TOOLTIP */}
+                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 bg-zinc-900 border border-emerald-500/30 text-xs p-3 rounded-lg text-zinc-300 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-xl">
+                          <div className="text-emerald-400 font-bold mb-1">{item.title} - {item.val}</div>
+                          {item.desc}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* DIFFÉRENCES CLÉS */}
+                  <div className="bg-zinc-800/50 border border-zinc-700 rounded-xl p-5">
+                    <h4 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
+                      <AlertTriangle className="w-4 h-4 text-orange-400" />
+                      Différences avec l'offre Performance
+                    </h4>
+                    <ul className="space-y-2 text-xs text-zinc-400">
+                      <li className="flex items-start gap-2">
+                        <span className="text-zinc-600">❌</span>
+                        <span>Pas d'autopilote IA (surveillance à distance)</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-zinc-600">❌</span>
+                        <span>Pas d'afficheur connecté temps réel</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-zinc-600">❌</span>
+                        <span>Garantie performance 25 ans au lieu de 30 ans</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-emerald-600">✅</span>
+                        <span className="text-emerald-400 font-bold">TVA réduite à 5.5% (économie immédiate de {((installCost * 0.145)).toFixed(0)}€)</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-emerald-600">✅</span>
+                        <span className="text-emerald-400 font-bold">Panneaux fabriqués en France</span>
+                      </li>
+                    </ul>
+                    
                     <button 
                       onClick={() => setPremiumWarranty(true)}
-                      className="bg-gradient-to-r from-amber-600 to-yellow-600 text-white font-bold px-8 py-4 rounded-xl hover:scale-105 transition-all shadow-lg shadow-amber-500/30 flex items-center gap-2 mx-auto"
+                      className="mt-4 w-full bg-gradient-to-r from-blue-600 to-cyan-600 text-white font-bold px-6 py-3 rounded-xl hover:scale-105 transition-all shadow-lg shadow-blue-500/30 flex items-center justify-center gap-2"
                     >
-                      <CheckCircle2 className="w-5 h-5" />
-                      PASSER AUX GARANTIES PREMIUM
                       <ArrowRight className="w-5 h-5" />
+                      PASSER À L'OFFRE PERFORMANCE
                     </button>
-                    
-                    <p className="text-[10px] text-zinc-600 mt-3">
-                      +2€/mois pour une tranquillité totale à vie
-                    </p>
                   </div>
                 </>
               )}
             </div>
         </div>
 
-        {/* --- GRAPHIQUES (CONSERVÉS) --- */}
+        {/* --- GRAPHIQUES AVEC BARRES ROUGES VISIBLES (CORRIGÉ) --- */}
         <div className="bg-zinc-900/50 border border-white/10 rounded-[30px] p-8 backdrop-blur-sm">
             <div className="flex items-center justify-between mb-8">
                 <div className="flex items-center gap-2">
@@ -1272,12 +1524,22 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ data, onRese
          </div>
 
         <div className="bg-zinc-900/50 border border-white/5 rounded-[32px] p-8 backdrop-blur-sm">
-            <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
+            <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
                 <div>
                     <h2 className="text-xl font-black text-white flex items-center gap-3">
                         <TrendingUp className="text-emerald-500" /> ÉCONOMIES ANNUELLES
                     </h2>
-                    <p className="text-zinc-500 text-sm mt-1">Votre gain net par année (rouge = investissement, vert = rentabilité)</p>
+                    <p className="text-zinc-500 text-sm mt-1 mb-3">Votre cashflow année par année</p>
+                    <div className="flex flex-wrap gap-4 text-xs">
+                      <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 bg-gradient-to-b from-red-500 to-red-600 rounded shadow-lg"></div>
+                        <span className="text-zinc-400"><span className="text-red-400 font-bold">Barres rouges</span> = Effort d'investissement (vous payez le crédit)</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 bg-gradient-to-b from-emerald-500 to-emerald-600 rounded shadow-lg"></div>
+                        <span className="text-zinc-400"><span className="text-emerald-400 font-bold">Barres vertes</span> = Rentabilité pure (vous économisez après le crédit)</span>
+                      </div>
+                    </div>
                 </div>
             </div>
 
@@ -1286,12 +1548,12 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ data, onRese
                     <BarChart data={calculationResult.slicedDetails} margin={{ top: 20, right: 10, left: 10, bottom: 0 }}>
                         <defs>
                             <linearGradient id="barGradientPositive" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="0%" stopColor="#10b981" stopOpacity={0.8}/>
-                                <stop offset="100%" stopColor="#059669" stopOpacity={0.4}/>
+                                <stop offset="0%" stopColor="#10b981" stopOpacity={0.9}/>
+                                <stop offset="100%" stopColor="#059669" stopOpacity={0.7}/>
                             </linearGradient>
                             <linearGradient id="barGradientNegative" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="0%" stopColor="#ef4444" stopOpacity={0.8}/>
-                                <stop offset="100%" stopColor="#dc2626" stopOpacity={0.4}/>
+                                <stop offset="0%" stopColor="#ef4444" stopOpacity={0.9}/>
+                                <stop offset="100%" stopColor="#dc2626" stopOpacity={0.7}/>
                             </linearGradient>
                         </defs>
                         <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} opacity={0.5} />
@@ -1320,22 +1582,32 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ data, onRese
                             itemStyle={{ fontWeight: 600, fontSize: '13px' }}
                             formatter={(value: number) => [
                                 formatEUR(value), 
-                                value >= 0 ? 'Gain Annuel' : 'Effort Annuel'
+                                value >= 0 ? '💰 Gain Annuel' : '📊 Effort Annuel'
                             ]}
                             labelStyle={{ color: '#a1a1aa', marginBottom: '8px', fontSize: '12px' }}
                         />
                         <Bar 
                             dataKey="cashflowDiff" 
                             name="Cashflow Annuel"
-                            fill="url(#barGradientPositive)"
                             radius={[8, 8, 0, 0]}
                         >
                             {calculationResult.slicedDetails.map((entry, index) => (
-                                <cell key={`cell-${index}`} fill={entry.cashflowDiff >= 0 ? 'url(#barGradientPositive)' : 'url(#barGradientNegative)'} />
+                                <rect
+                                  key={`bar-${index}`}
+                                  fill={entry.cashflowDiff >= 0 ? 'url(#barGradientPositive)' : 'url(#barGradientNegative)'}
+                                />
                             ))}
                         </Bar>
                     </BarChart>
                 </ResponsiveContainer>
+            </div>
+            
+            <div className="mt-6 bg-zinc-800/50 border border-white/10 rounded-xl p-4">
+              <p className="text-sm text-zinc-300">
+                💡 <span className="font-bold text-white">Lecture du graphique :</span> Les premières années, vous payez le crédit (barres rouges = effort temporaire). 
+                Après la fin du crédit, vous économisez plein pot (barres vertes = profit permanent). 
+                <span className="text-emerald-400 font-bold"> Plus vous attendez, plus les barres vertes deviennent grandes !</span>
+              </p>
             </div>
         </div>
 
